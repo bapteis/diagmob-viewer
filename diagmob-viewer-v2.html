@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DiagMob - Visualiseur de trajets</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 2em;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      font-size: 1.1em;
+      opacity: 0.9;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 0;
+    }
+
+    .sidebar {
+      background: #f8f9fa;
+      padding: 30px;
+      border-right: 1px solid #e0e0e0;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .loading-spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .stat-card h3 {
+      font-size: 0.9em;
+      color: #666;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-size: 2em;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      font-size: 0.9em;
+      color: #888;
+    }
+
+    .trajet-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      border-left: 4px solid #ccc;
+    }
+
+    .trajet-card.voiture {
+      border-left-color: #dc3545;
+    }
+
+    .trajet-card.velo {
+      border-left-color: #28a745;
+    }
+
+    .trajet-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .trajet-icon {
+      font-size: 2em;
+    }
+
+    .trajet-title {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .trajet-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .trajet-stat {
+      text-align: center;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+
+    .trajet-stat-value {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .trajet-stat-label {
+      font-size: 0.8em;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .comparaison {
+      background: #fff3cd;
+      padding: 20px;
+      border-radius: 12px;
+      margin-top: 20px;
+      border-left: 4px solid #ffc107;
+    }
+
+    .comparaison h3 {
+      color: #856404;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .comparaison-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #ffeaa7;
+    }
+
+    .comparaison-item:last-child {
+      border-bottom: none;
+    }
+
+    .comparaison-label {
+      font-weight: 500;
+    }
+
+    .comparaison-value {
+      font-weight: bold;
+      color: #28a745;
+    }
+
+    #map {
+      height: 80vh;
+      min-height: 600px;
+    }
+
+    .legend {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .legend h4 {
+      margin-bottom: 10px;
+      font-size: 0.9em;
+      color: #333;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .legend-line {
+      width: 30px;
+      height: 3px;
+      border-radius: 2px;
+    }
+
+    .legend-line.voiture { background: #dc3545; }
+    .legend-line.velo { background: #28a745; }
+
+    @media (max-width: 1024px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        max-height: none;
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📍 DiagMob - Visualisation de vos trajets</h1>
+      <p>Découvrez vos alternatives de mobilité</p>
+    </div>
+
+    <div class="content">
+      <!-- Sidebar avec stats -->
+      <div class="sidebar" id="sidebar">
+        <div class="loading" id="loading">
+          <div class="loading-spinner"></div>
+          <p>Chargement des données...</p>
+        </div>
+        <div id="stats-container" style="display:none;"></div>
+        <div id="trajets-container" style="display:none;"></div>
+        <div id="comparaison-container" style="display:none;"></div>
+      </div>
+
+      <!-- Carte -->
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // CONFIGURATION GRIST
+    // ═══════════════════════════════════════════════════════════════
+
+    // IMPORTANT: Remplacer par tes vraies valeurs
+    const GRIST_CONFIG = {
+      server: 'https://grist.numerique.gouv.fr',  // Ton serveur Grist
+      docId: 'YOUR_DOC_ID',  // À remplacer !
+      tableName: 'DiagmobV2',  // Nom de ta table
+      apiKey: 'YOUR_API_KEY'  // Clé API publique en lecture seule
+    };
+
+    // ═══════════════════════════════════════════════════════════════
+    // RÉCUPÉRATION DES PARAMÈTRES URL
+    // ═══════════════════════════════════════════════════════════════
+    const params = new URLSearchParams(window.location.search);
+    const agentId = params.get('agent') || params.get('agent_id');
+
+    if (!agentId) {
+      document.getElementById('loading').innerHTML = `
+        <div class="error">
+          <h3>❌ Erreur</h3>
+          <p>Aucun agent spécifié dans l'URL.</p>
+          <p>Format attendu : <code>?agent=20</code></p>
+        </div>
+      `;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INITIALISATION DE LA CARTE
+    // ═══════════════════════════════════════════════════════════════
+    const map = L.map('map').setView([46.603354, 1.888334], 6); // Centre de la France
+
+    // Utiliser les tuiles OpenStreetMap France
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    }).addTo(map);
+
+    // ═══════════════════════════════════════════════════════════════
+    // CHARGEMENT DES DONNÉES DEPUIS GRIST
+    // ═══════════════════════════════════════════════════════════════
+    async function loadAgentData() {
+      if (!agentId) return;
+
+      try {
+        const url = `${GRIST_CONFIG.server}/api/docs/${GRIST_CONFIG.docId}/tables/${GRIST_CONFIG.tableName}/records`;
+        const headers = {
+          'Authorization': `Bearer ${GRIST_CONFIG.apiKey}`
+        };
+
+        const response = await fetch(url, { headers });
+
+        if (!response.ok) {
+          throw new Error(`Erreur API Grist: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Trouver l'agent
+        const agentRecord = data.records.find(r => r.id == agentId);
+
+        if (!agentRecord) {
+          throw new Error(`Agent ${agentId} non trouvé`);
+        }
+
+        const fields = agentRecord.fields;
+
+        // Afficher les données
+        displayAgentData(fields);
+
+        // Masquer le loading
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('stats-container').style.display = 'block';
+        document.getElementById('trajets-container').style.display = 'block';
+        document.getElementById('comparaison-container').style.display = 'block';
+
+      } catch (error) {
+        console.error('Erreur:', error);
+        document.getElementById('loading').innerHTML = `
+          <div class="error">
+            <h3>❌ Erreur de chargement</h3>
+            <p>${error.message}</p>
+            <p>Vérifiez la configuration Grist dans le code.</p>
+          </div>
+        `;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AFFICHAGE DES DONNÉES
+    // ═══════════════════════════════════════════════════════════════
+    function displayAgentData(fields) {
+      const statsContainer = document.getElementById('stats-container');
+      const trajetsContainer = document.getElementById('trajets-container');
+      const comparaisonContainer = document.getElementById('comparaison-container');
+
+      // GPS
+      const latDom = fields.GPS_Dom_Lat;
+      const lonDom = fields.GPS_Dom_Lon;
+      const latTrav = fields.GPS_Trav_Lat;
+      const lonTrav = fields.GPS_Trav_Lon;
+
+      // GeoJSON
+      const geojsonVoiture = fields.Trajet_Voiture_GeoJSON;
+      const geojsonVelo = fields.Trajet_Velo_GeoJSON;
+
+      // Stats
+      const distVoiture = fields.Distance_Voiture_km || 0;
+      const dureeVoiture = fields.Temps_Voiture_min || 0;
+      const distVelo = fields.Distance_Velo_km || 0;
+      const dureeVelo = fields.Temps_Velo_min || 0;
+
+      const bounds = L.latLngBounds([]);
+
+      // Marqueurs domicile et travail
+      if (latDom && lonDom) {
+        const markerDom = L.marker([latDom, lonDom], {
+          icon: L.divIcon({
+            html: '🏠',
+            className: 'emoji-icon',
+            iconSize: [30, 30]
+          })
+        }).addTo(map).bindPopup('Domicile');
+        bounds.extend([latDom, lonDom]);
+      }
+
+      if (latTrav && lonTrav) {
+        const markerTrav = L.marker([latTrav, lonTrav], {
+          icon: L.divIcon({
+            html: '🏢',
+            className: 'emoji-icon',
+            iconSize: [30, 30]
+          })
+        }).addTo(map).bindPopup('Travail');
+        bounds.extend([latTrav, lonTrav]);
+      }
+
+      // Trajet voiture
+      if (geojsonVoiture) {
+        try {
+          const geojson = JSON.parse(geojsonVoiture);
+          const line = L.geoJSON(geojson, {
+            style: {
+              color: '#dc3545',
+              weight: 4,
+              opacity: 0.8
+            }
+          }).addTo(map);
+          bounds.extend(line.getBounds());
+
+          // Carte trajet voiture
+          trajetsContainer.innerHTML += `
+            <div class="trajet-card voiture">
+              <div class="trajet-header">
+                <div class="trajet-icon">🚗</div>
+                <div class="trajet-title">Voiture (trajet actuel)</div>
+              </div>
+              <div class="trajet-stats">
+                <div class="trajet-stat">
+                  <div class="trajet-stat-value">${distVoiture}</div>
+                  <div class="trajet-stat-label">km</div>
+                </div>
+                <div class="trajet-stat">
+                  <div class="trajet-stat-value">${dureeVoiture}</div>
+                  <div class="trajet-stat-label">min</div>
+                </div>
+              </div>
+            </div>
+          `;
+        } catch (e) {
+          console.error('Erreur GeoJSON voiture:', e);
+        }
+      }
+
+      // Trajet vélo
+      if (geojsonVelo) {
+        try {
+          const geojson = JSON.parse(geojsonVelo);
+          const line = L.geoJSON(geojson, {
+            style: {
+              color: '#28a745',
+              weight: 4,
+              opacity: 0.8
+            }
+          }).addTo(map);
+          bounds.extend(line.getBounds());
+
+          // Carte trajet vélo
+          trajetsContainer.innerHTML += `
+            <div class="trajet-card velo">
+              <div class="trajet-header">
+                <div class="trajet-icon">🚴</div>
+                <div class="trajet-title">Vélo (trajet alternatif)</div>
+              </div>
+              <div class="trajet-stats">
+                <div class="trajet-stat">
+                  <div class="trajet-stat-value">${distVelo}</div>
+                  <div class="trajet-stat-label">km</div>
+                </div>
+                <div class="trajet-stat">
+                  <div class="trajet-stat-value">${dureeVelo}</div>
+                  <div class="trajet-stat-label">min</div>
+                </div>
+              </div>
+            </div>
+          `;
+        } catch (e) {
+          console.error('Erreur GeoJSON vélo:', e);
+        }
+      }
+
+      // Ajuster la vue
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+
+      // Stats globales
+      if (distVoiture > 0) {
+        statsContainer.innerHTML = `
+          <div class="stat-card">
+            <h3>Distance domicile-travail</h3>
+            <div class="stat-value">${distVoiture}</div>
+            <div class="stat-label">kilomètres</div>
+          </div>
+        `;
+      }
+
+      // Comparaison voiture vs vélo
+      if (distVoiture > 0 && distVelo > 0) {
+        const economieCarburant = (distVoiture * 2 * 220 * 0.08 * 1.8).toFixed(0); // 220 jours/an, 8L/100km, 1.8€/L
+        const co2Evite = (distVoiture * 2 * 220 * 0.12).toFixed(0); // 120g CO2/km
+        const caloriesBrulees = (distVelo * 2 * 220 * 40).toFixed(0); // 40 cal/km
+        const tempsSup = (dureeVelo - dureeVoiture) * 2;
+
+        comparaisonContainer.innerHTML = `
+          <div class="comparaison">
+            <h3>💰 En passant au vélo</h3>
+            <div class="comparaison-item">
+              <span class="comparaison-label">Économies carburant/an</span>
+              <span class="comparaison-value">${economieCarburant} €</span>
+            </div>
+            <div class="comparaison-item">
+              <span class="comparaison-label">CO₂ évité/an</span>
+              <span class="comparaison-value">${co2Evite} kg</span>
+            </div>
+            <div class="comparaison-item">
+              <span class="comparaison-label">Calories brûlées/an</span>
+              <span class="comparaison-value">${caloriesBrulees}</span>
+            </div>
+            <div class="comparaison-item">
+              <span class="comparaison-label">Temps supplémentaire/jour</span>
+              <span class="comparaison-value">+${tempsSup} min</span>
+            </div>
+          </div>
+
+          <div class="comparaison" style="background: #d1ecf1; border-left-color: #0c5460; margin-top: 15px;">
+            <h3 style="color: #0c5460;">ℹ️ Le saviez-vous ?</h3>
+            <p style="color: #0c5460; font-size: 0.95em; line-height: 1.6;">
+              Vous êtes éligible au <strong>Forfait Mobilités Durables</strong> :
+              jusqu'à <strong>300€/an</strong> pour vos trajets en vélo !
+            </p>
+          </div>
+        `;
+      }
+
+      // Légende
+      const legend = L.control({ position: 'bottomright' });
+      legend.onAdd = function() {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = '<h4>Légende</h4>';
+
+        if (geojsonVoiture) {
+          div.innerHTML += `
+            <div class="legend-item">
+              <div class="legend-line voiture"></div>
+              <span>Trajet voiture</span>
+            </div>
+          `;
+        }
+
+        if (geojsonVelo) {
+          div.innerHTML += `
+            <div class="legend-item">
+              <div class="legend-line velo"></div>
+              <span>Trajet vélo</span>
+            </div>
+          `;
+        }
+
+        return div;
+      };
+      legend.addTo(map);
+    }
+
+    // Style pour les icônes emoji
+    const style = document.createElement('style');
+    style.textContent = `
+      .emoji-icon {
+        background: none !important;
+        border: none !important;
+        text-align: center;
+        line-height: 30px;
+        font-size: 24px;
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Charger les données au démarrage
+    loadAgentData();
+  </script>
+</body>
+</html>
