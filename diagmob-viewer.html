@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DiagMob - Visualiseur de trajets</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 2em;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      font-size: 1.1em;
+      opacity: 0.9;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 0;
+    }
+
+    .sidebar {
+      background: #f8f9fa;
+      padding: 30px;
+      border-right: 1px solid #e0e0e0;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .stat-card h3 {
+      font-size: 0.9em;
+      color: #666;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-size: 2em;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      font-size: 0.9em;
+      color: #888;
+    }
+
+    .trajet-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      border-left: 4px solid #ccc;
+    }
+
+    .trajet-card.voiture {
+      border-left-color: #dc3545;
+    }
+
+    .trajet-card.velo {
+      border-left-color: #28a745;
+    }
+
+    .trajet-card.covoiturage {
+      border-left-color: #007bff;
+    }
+
+    .trajet-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .trajet-icon {
+      font-size: 2em;
+    }
+
+    .trajet-title {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .trajet-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .trajet-stat {
+      text-align: center;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+
+    .trajet-stat-value {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .trajet-stat-label {
+      font-size: 0.8em;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .comparaison {
+      background: #fff3cd;
+      padding: 20px;
+      border-radius: 12px;
+      margin-top: 20px;
+      border-left: 4px solid #ffc107;
+    }
+
+    .comparaison h3 {
+      color: #856404;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .comparaison-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #ffeaa7;
+    }
+
+    .comparaison-item:last-child {
+      border-bottom: none;
+    }
+
+    .comparaison-label {
+      font-weight: 500;
+    }
+
+    .comparaison-value {
+      font-weight: bold;
+      color: #28a745;
+    }
+
+    #map {
+      height: 80vh;
+      min-height: 600px;
+    }
+
+    .legend {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .legend h4 {
+      margin-bottom: 10px;
+      font-size: 0.9em;
+      color: #333;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .legend-line {
+      width: 30px;
+      height: 3px;
+      border-radius: 2px;
+    }
+
+    .legend-line.voiture { background: #dc3545; }
+    .legend-line.velo { background: #28a745; }
+    .legend-line.covoiturage { background: #007bff; }
+
+    @media (max-width: 1024px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        max-height: none;
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📍 DiagMob - Visualisation de vos trajets</h1>
+      <p>Découvrez vos alternatives de mobilité</p>
+    </div>
+
+    <div class="content">
+      <!-- Sidebar avec stats -->
+      <div class="sidebar" id="sidebar">
+        <div id="stats-container"></div>
+        <div id="trajets-container"></div>
+        <div id="comparaison-container"></div>
+      </div>
+
+      <!-- Carte -->
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Polyline decoder -->
+  <script src="https://unpkg.com/@mapbox/polyline@1.1.1/src/polyline.js"></script>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // RÉCUPÉRATION DES PARAMÈTRES URL
+    // ═══════════════════════════════════════════════════════════════
+    const params = new URLSearchParams(window.location.search);
+
+    const trajets = [];
+
+    // Trajet voiture
+    if (params.get('polyline_voiture')) {
+      trajets.push({
+        type: 'voiture',
+        icon: '🚗',
+        nom: 'Voiture (trajet actuel)',
+        polyline: params.get('polyline_voiture'),
+        distance: parseFloat(params.get('dist_voiture')) || 0,
+        duree: parseInt(params.get('duree_voiture')) || 0,
+        color: '#dc3545'
+      });
+    }
+
+    // Trajet vélo
+    if (params.get('polyline_velo')) {
+      trajets.push({
+        type: 'velo',
+        icon: '🚴',
+        nom: 'Vélo (trajet alternatif)',
+        polyline: params.get('polyline_velo'),
+        distance: parseFloat(params.get('dist_velo')) || 0,
+        duree: parseInt(params.get('duree_velo')) || 0,
+        color: '#28a745'
+      });
+    }
+
+    // Trajets covoiturage (multiples personnes)
+    let i = 1;
+    while (params.get(`polyline_covoit${i}`)) {
+      trajets.push({
+        type: 'covoiturage',
+        icon: '🚗👥',
+        nom: `Covoiturage - Personne ${i}`,
+        polyline: params.get(`polyline_covoit${i}`),
+        distance: parseFloat(params.get(`dist_covoit${i}`)) || 0,
+        duree: parseInt(params.get(`duree_covoit${i}`)) || 0,
+        color: i === 1 ? '#007bff' : `hsl(${210 + i * 30}, 70%, 50%)`
+      });
+      i++;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INITIALISATION DE LA CARTE
+    // ═══════════════════════════════════════════════════════════════
+    const map = L.map('map').setView([48.8566, 2.3522], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+
+    // ═══════════════════════════════════════════════════════════════
+    // AFFICHAGE DES TRAJETS
+    // ═══════════════════════════════════════════════════════════════
+    const bounds = L.latLngBounds([]);
+
+    trajets.forEach((trajet, index) => {
+      // Décoder la polyline
+      const coords = polyline.decode(trajet.polyline);
+
+      // Créer la ligne sur la carte
+      const line = L.polyline(coords, {
+        color: trajet.color,
+        weight: 4,
+        opacity: 0.8
+      }).addTo(map);
+
+      // Ajouter au bounds
+      bounds.extend(line.getBounds());
+
+      // Marqueurs début/fin
+      if (index === 0) {
+        L.marker(coords[0], {
+          icon: L.divIcon({
+            html: '🏠',
+            className: 'emoji-icon',
+            iconSize: [30, 30]
+          })
+        }).addTo(map).bindPopup('Domicile');
+
+        L.marker(coords[coords.length - 1], {
+          icon: L.divIcon({
+            html: '🏢',
+            className: 'emoji-icon',
+            iconSize: [30, 30]
+          })
+        }).addTo(map).bindPopup('Travail');
+      }
+    });
+
+    // Ajuster la vue
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AFFICHAGE DES STATS
+    // ═══════════════════════════════════════════════════════════════
+    const statsContainer = document.getElementById('stats-container');
+    const trajetsContainer = document.getElementById('trajets-container');
+    const comparaisonContainer = document.getElementById('comparaison-container');
+
+    // Stats globales
+    if (trajets.length > 0) {
+      const trajetPrincipal = trajets[0];
+      statsContainer.innerHTML = `
+        <div class="stat-card">
+          <h3>Distance totale</h3>
+          <div class="stat-value">${trajetPrincipal.distance}</div>
+          <div class="stat-label">kilomètres</div>
+        </div>
+      `;
+    }
+
+    // Cartes de trajets
+    trajets.forEach(trajet => {
+      const card = document.createElement('div');
+      card.className = `trajet-card ${trajet.type}`;
+      card.innerHTML = `
+        <div class="trajet-header">
+          <div class="trajet-icon">${trajet.icon}</div>
+          <div class="trajet-title">${trajet.nom}</div>
+        </div>
+        <div class="trajet-stats">
+          <div class="trajet-stat">
+            <div class="trajet-stat-value">${trajet.distance}</div>
+            <div class="trajet-stat-label">km</div>
+          </div>
+          <div class="trajet-stat">
+            <div class="trajet-stat-value">${trajet.duree}</div>
+            <div class="trajet-stat-label">min</div>
+          </div>
+        </div>
+      `;
+      trajetsContainer.appendChild(card);
+    });
+
+    // Comparaison voiture vs vélo
+    const trajetVoiture = trajets.find(t => t.type === 'voiture');
+    const trajetVelo = trajets.find(t => t.type === 'velo');
+
+    if (trajetVoiture && trajetVelo) {
+      const economieCarburant = (trajetVoiture.distance * 2 * 220 * 0.08 * 1.8).toFixed(0); // 220 jours/an, 8L/100km, 1.8€/L
+      const co2Evite = (trajetVoiture.distance * 2 * 220 * 0.12).toFixed(0); // 120g CO2/km
+      const caloriesBrulees = (trajetVelo.distance * 2 * 220 * 40).toFixed(0); // 40 cal/km
+
+      comparaisonContainer.innerHTML = `
+        <div class="comparaison">
+          <h3>💰 En passant au vélo</h3>
+          <div class="comparaison-item">
+            <span class="comparaison-label">Économies carburant/an</span>
+            <span class="comparaison-value">${economieCarburant} €</span>
+          </div>
+          <div class="comparaison-item">
+            <span class="comparaison-label">CO₂ évité/an</span>
+            <span class="comparaison-value">${co2Evite} kg</span>
+          </div>
+          <div class="comparaison-item">
+            <span class="comparaison-label">Calories brûlées/an</span>
+            <span class="comparaison-value">${caloriesBrulees}</span>
+          </div>
+          <div class="comparaison-item">
+            <span class="comparaison-label">Temps supplémentaire/jour</span>
+            <span class="comparaison-value">+${((trajetVelo.duree - trajetVoiture.duree) * 2)} min</span>
+          </div>
+        </div>
+
+        <div class="comparaison" style="background: #d1ecf1; border-left-color: #0c5460; margin-top: 15px;">
+          <h3 style="color: #0c5460;">ℹ️ Le saviez-vous ?</h3>
+          <p style="color: #0c5460; font-size: 0.95em; line-height: 1.6;">
+            Vous êtes éligible au <strong>Forfait Mobilités Durables</strong> :
+            jusqu'à <strong>300€/an</strong> pour vos trajets en vélo !
+          </p>
+        </div>
+      `;
+    }
+
+    // Légende
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function() {
+      const div = L.DomUtil.create('div', 'legend');
+      div.innerHTML = '<h4>Légende</h4>';
+
+      trajets.forEach(trajet => {
+        div.innerHTML += `
+          <div class="legend-item">
+            <div class="legend-line ${trajet.type}"></div>
+            <span>${trajet.nom}</span>
+          </div>
+        `;
+      });
+
+      return div;
+    };
+    legend.addTo(map);
+
+    // Style pour les icônes emoji
+    const style = document.createElement('style');
+    style.textContent = `
+      .emoji-icon {
+        background: none !important;
+        border: none !important;
+        text-align: center;
+        line-height: 30px;
+        font-size: 24px;
+      }
+    `;
+    document.head.appendChild(style);
+  </script>
+</body>
+</html>
