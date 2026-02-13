@@ -62,6 +62,27 @@
       overflow-y: auto;
     }
 
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .loading-spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
     .error {
       background: #f8d7da;
       color: #721c24;
@@ -249,9 +270,13 @@
     <div class="content">
       <!-- Sidebar avec stats -->
       <div class="sidebar" id="sidebar">
-        <div id="stats-container"></div>
-        <div id="trajets-container"></div>
-        <div id="comparaison-container"></div>
+        <div class="loading" id="loading">
+          <div class="loading-spinner"></div>
+          <p>Chargement des données...</p>
+        </div>
+        <div id="stats-container" style="display:none;"></div>
+        <div id="trajets-container" style="display:none;"></div>
+        <div id="comparaison-container" style="display:none;"></div>
       </div>
 
       <!-- Carte -->
@@ -262,35 +287,31 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Polyline decoder -->
-  <script src="https://unpkg.com/@mapbox/polyline@1.1.1/src/polyline.js"></script>
-
   <script>
+    // ═══════════════════════════════════════════════════════════════
+    // CONFIGURATION GRIST
+    // ═══════════════════════════════════════════════════════════════
+
+    // Configuration Grist
+    const GRIST_CONFIG = {
+      server: 'https://grist.incubateur.dnum.din.developpement-durable.gouv.fr',
+      docId: 'cfiCVUp2f85MBLuwwzUiGV',
+      tableName: 'DiagmobV2',
+      apiKey: '63ce4c8526f497008a25ce60f8306bfb3bef3b94'
+    };
+
     // ═══════════════════════════════════════════════════════════════
     // RÉCUPÉRATION DES PARAMÈTRES URL
     // ═══════════════════════════════════════════════════════════════
     const params = new URLSearchParams(window.location.search);
+    const agentId = params.get('agent') || params.get('agent_id');
 
-    const polylineVoiture = params.get('pv') || params.get('polyline_voiture');
-    const polylineVelo = params.get('pb') || params.get('polyline_velo');
-    const distVoiture = parseFloat(params.get('dv') || params.get('dist_voiture') || 0);
-    const dureeVoiture = parseInt(params.get('tv') || params.get('duree_voiture') || 0);
-    const distVelo = parseFloat(params.get('db') || params.get('dist_velo') || 0);
-    const dureeVelo = parseInt(params.get('tb') || params.get('duree_velo') || 0);
-
-    // GPS
-    const latDom = parseFloat(params.get('lat_dom') || 0);
-    const lonDom = parseFloat(params.get('lon_dom') || 0);
-    const latTrav = parseFloat(params.get('lat_trav') || 0);
-    const lonTrav = parseFloat(params.get('lon_trav') || 0);
-
-    // Vérifier qu'on a au moins un trajet
-    if (!polylineVoiture && !polylineVelo) {
-      document.getElementById('sidebar').innerHTML = `
+    if (!agentId) {
+      document.getElementById('loading').innerHTML = `
         <div class="error">
           <h3>❌ Erreur</h3>
-          <p>Aucun trajet spécifié dans l'URL.</p>
-          <p>Veuillez utiliser l'URL générée par DiagMob.</p>
+          <p>Aucun agent spécifié dans l'URL.</p>
+          <p>Format attendu : <code>?agent=20</code></p>
         </div>
       `;
     }
@@ -298,196 +319,269 @@
     // ═══════════════════════════════════════════════════════════════
     // INITIALISATION DE LA CARTE
     // ═══════════════════════════════════════════════════════════════
-    const map = L.map('map').setView([46.603354, 1.888334], 6);
+    const map = L.map('map').setView([46.603354, 1.888334], 6); // Centre de la France
 
+    // Utiliser les tuiles OpenStreetMap France
     L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
     }).addTo(map);
 
     // ═══════════════════════════════════════════════════════════════
-    // AFFICHAGE DES TRAJETS
+    // CHARGEMENT DES DONNÉES DEPUIS GRIST
     // ═══════════════════════════════════════════════════════════════
-    const statsContainer = document.getElementById('stats-container');
-    const trajetsContainer = document.getElementById('trajets-container');
-    const comparaisonContainer = document.getElementById('comparaison-container');
+    async function loadAgentData() {
+      if (!agentId) return;
 
-    const bounds = L.latLngBounds([]);
-
-    // Marqueurs domicile et travail
-    if (latDom && lonDom) {
-      const markerDom = L.marker([latDom, lonDom], {
-        icon: L.divIcon({
-          html: '🏠',
-          className: 'emoji-icon',
-          iconSize: [30, 30]
-        })
-      }).addTo(map).bindPopup('Domicile');
-      bounds.extend([latDom, lonDom]);
-    }
-
-    if (latTrav && lonTrav) {
-      const markerTrav = L.marker([latTrav, lonTrav], {
-        icon: L.divIcon({
-          html: '🏢',
-          className: 'emoji-icon',
-          iconSize: [30, 30]
-        })
-      }).addTo(map).bindPopup('Travail');
-      bounds.extend([latTrav, lonTrav]);
-    }
-
-    // Trajet voiture
-    if (polylineVoiture) {
       try {
-        const coords = polyline.decode(polylineVoiture);
-        const line = L.polyline(coords, {
-          color: '#dc3545',
-          weight: 4,
-          opacity: 0.8
-        }).addTo(map);
-        bounds.extend(line.getBounds());
+        const url = `${GRIST_CONFIG.server}/api/docs/${GRIST_CONFIG.docId}/tables/${GRIST_CONFIG.tableName}/records`;
+        const headers = {
+          'Authorization': `Bearer ${GRIST_CONFIG.apiKey}`
+        };
 
-        // Carte trajet voiture
-        trajetsContainer.innerHTML += `
-          <div class="trajet-card voiture">
-            <div class="trajet-header">
-              <div class="trajet-icon">🚗</div>
-              <div class="trajet-title">Voiture (trajet actuel)</div>
-            </div>
-            <div class="trajet-stats">
-              <div class="trajet-stat">
-                <div class="trajet-stat-value">${distVoiture}</div>
-                <div class="trajet-stat-label">km</div>
-              </div>
-              <div class="trajet-stat">
-                <div class="trajet-stat-value">${dureeVoiture}</div>
-                <div class="trajet-stat-label">min</div>
-              </div>
-            </div>
-          </div>
-        `;
-      } catch (e) {
-        console.error('Erreur décodage polyline voiture:', e);
-      }
-    }
+        const response = await fetch(url, { headers });
 
-    // Trajet vélo
-    if (polylineVelo) {
-      try {
-        const coords = polyline.decode(polylineVelo);
-        const line = L.polyline(coords, {
-          color: '#28a745',
-          weight: 4,
-          opacity: 0.8
-        }).addTo(map);
-        bounds.extend(line.getBounds());
+        if (!response.ok) {
+          throw new Error(`Erreur API Grist: ${response.status}`);
+        }
 
-        // Carte trajet vélo
-        trajetsContainer.innerHTML += `
-          <div class="trajet-card velo">
-            <div class="trajet-header">
-              <div class="trajet-icon">🚴</div>
-              <div class="trajet-title">Vélo (trajet alternatif)</div>
-            </div>
-            <div class="trajet-stats">
-              <div class="trajet-stat">
-                <div class="trajet-stat-value">${distVelo}</div>
-                <div class="trajet-stat-label">km</div>
-              </div>
-              <div class="trajet-stat">
-                <div class="trajet-stat-value">${dureeVelo}</div>
-                <div class="trajet-stat-label">min</div>
-              </div>
-            </div>
-          </div>
-        `;
-      } catch (e) {
-        console.error('Erreur décodage polyline vélo:', e);
-      }
-    }
+        const data = await response.json();
 
-    // Ajuster la vue
-    if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [50, 50] });
-    }
+        // Trouver l'agent
+        const agentRecord = data.records.find(r => r.id == agentId);
 
-    // Stats globales
-    if (distVoiture > 0) {
-      statsContainer.innerHTML = `
-        <div class="stat-card">
-          <h3>Distance domicile-travail</h3>
-          <div class="stat-value">${distVoiture}</div>
-          <div class="stat-label">kilomètres</div>
-        </div>
-      `;
-    }
+        if (!agentRecord) {
+          throw new Error(`Agent ${agentId} non trouvé`);
+        }
 
-    // Comparaison voiture vs vélo
-    if (distVoiture > 0 && distVelo > 0) {
-      const economieCarburant = (distVoiture * 2 * 220 * 0.08 * 1.8).toFixed(0);
-      const co2Evite = (distVoiture * 2 * 220 * 0.12).toFixed(0);
-      const caloriesBrulees = (distVelo * 2 * 220 * 40).toFixed(0);
-      const tempsSup = (dureeVelo - dureeVoiture) * 2;
+        const fields = agentRecord.fields;
 
-      comparaisonContainer.innerHTML = `
-        <div class="comparaison">
-          <h3>💰 En passant au vélo</h3>
-          <div class="comparaison-item">
-            <span class="comparaison-label">Économies carburant/an</span>
-            <span class="comparaison-value">${economieCarburant} €</span>
-          </div>
-          <div class="comparaison-item">
-            <span class="comparaison-label">CO₂ évité/an</span>
-            <span class="comparaison-value">${co2Evite} kg</span>
-          </div>
-          <div class="comparaison-item">
-            <span class="comparaison-label">Calories brûlées/an</span>
-            <span class="comparaison-value">${caloriesBrulees}</span>
-          </div>
-          <div class="comparaison-item">
-            <span class="comparaison-label">Temps supplémentaire/jour</span>
-            <span class="comparaison-value">+${tempsSup} min</span>
-          </div>
-        </div>
+        // Afficher les données
+        displayAgentData(fields);
 
-        <div class="comparaison" style="background: #d1ecf1; border-left-color: #0c5460; margin-top: 15px;">
-          <h3 style="color: #0c5460;">ℹ️ Le saviez-vous ?</h3>
-          <p style="color: #0c5460; font-size: 0.95em; line-height: 1.6;">
-            Vous êtes éligible au <strong>Forfait Mobilités Durables</strong> :
-            jusqu'à <strong>300€/an</strong> pour vos trajets en vélo !
-          </p>
-        </div>
-      `;
-    }
+        // Masquer le loading
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('stats-container').style.display = 'block';
+        document.getElementById('trajets-container').style.display = 'block';
+        document.getElementById('comparaison-container').style.display = 'block';
 
-    // Légende
-    const legend = L.control({ position: 'bottomright' });
-    legend.onAdd = function() {
-      const div = L.DomUtil.create('div', 'legend');
-      div.innerHTML = '<h4>Légende</h4>';
-
-      if (polylineVoiture) {
-        div.innerHTML += `
-          <div class="legend-item">
-            <div class="legend-line voiture"></div>
-            <span>Trajet voiture</span>
+      } catch (error) {
+        console.error('Erreur:', error);
+        document.getElementById('loading').innerHTML = `
+          <div class="error">
+            <h3>❌ Erreur de chargement</h3>
+            <p>${error.message}</p>
+            <p>Vérifiez la configuration Grist dans le code.</p>
           </div>
         `;
       }
+    }
 
-      if (polylineVelo) {
-        div.innerHTML += `
-          <div class="legend-item">
-            <div class="legend-line velo"></div>
-            <span>Trajet vélo</span>
+    // ═══════════════════════════════════════════════════════════════
+    // AFFICHAGE DES DONNÉES
+    // ═══════════════════════════════════════════════════════════════
+    function displayAgentData(fields) {
+      const statsContainer = document.getElementById('stats-container');
+      const trajetsContainer = document.getElementById('trajets-container');
+      const comparaisonContainer = document.getElementById('comparaison-container');
+
+      // GPS
+      const latDom = fields.GPS_Dom_Lat;
+      const lonDom = fields.GPS_Dom_Lon;
+      const latTrav = fields.GPS_Trav_Lat;
+      const lonTrav = fields.GPS_Trav_Lon;
+
+      // GeoJSON
+      const geojsonVoiture = fields.Trajet_Voiture_GeoJSON;
+      const geojsonVelo = fields.Trajet_Velo_GeoJSON;
+
+      // Stats
+      const distVoiture = fields.Distance_Voiture_km || 0;
+      const dureeVoiture = fields.Temps_Voiture_min || 0;
+      const distVelo = fields.Distance_Velo_km || 0;
+      const dureeVelo = fields.Temps_Velo_min || 0;
+
+      const bounds = L.latLngBounds([]);
+
+      // Marqueurs domicile et travail
+      if (latDom && lonDom) {
+        const markerDom = L.marker([latDom, lonDom], {
+          icon: L.divIcon({
+            html: '🏠',
+            className: 'emoji-icon',
+            iconSize: [30, 30]
+          })
+        }).addTo(map).bindPopup('Domicile');
+        bounds.extend([latDom, lonDom]);
+      }
+
+      if (latTrav && lonTrav) {
+        const markerTrav = L.marker([latTrav, lonTrav], {
+          icon: L.divIcon({
+            html: '🏢',
+            className: 'emoji-icon',
+            iconSize: [30, 30]
+          })
+        }).addTo(map).bindPopup('Travail');
+        bounds.extend([latTrav, lonTrav]);
+      }
+
+      // Trajet voiture
+      if (geojsonVoiture) {
+        try {
+          const geojson = JSON.parse(geojsonVoiture);
+          const line = L.geoJSON(geojson, {
+            style: {
+              color: '#dc3545',
+              weight: 4,
+              opacity: 0.8
+            }
+          }).addTo(map);
+          bounds.extend(line.getBounds());
+
+          // Carte trajet voiture
+          trajetsContainer.innerHTML += `
+            <div class="trajet-card voiture">
+              <div class="trajet-header">
+                <div class="trajet-icon">🚗</div>
+                <div class="trajet-title">Voiture (trajet actuel)</div>
+              </div>
+              <div class="trajet-stats">
+                <div class="trajet-stat">
+                  <div class="trajet-stat-value">${distVoiture}</div>
+                  <div class="trajet-stat-label">km</div>
+                </div>
+                <div class="trajet-stat">
+                  <div class="trajet-stat-value">${dureeVoiture}</div>
+                  <div class="trajet-stat-label">min</div>
+                </div>
+              </div>
+            </div>
+          `;
+        } catch (e) {
+          console.error('Erreur GeoJSON voiture:', e);
+        }
+      }
+
+      // Trajet vélo
+      if (geojsonVelo) {
+        try {
+          const geojson = JSON.parse(geojsonVelo);
+          const line = L.geoJSON(geojson, {
+            style: {
+              color: '#28a745',
+              weight: 4,
+              opacity: 0.8
+            }
+          }).addTo(map);
+          bounds.extend(line.getBounds());
+
+          // Carte trajet vélo
+          trajetsContainer.innerHTML += `
+            <div class="trajet-card velo">
+              <div class="trajet-header">
+                <div class="trajet-icon">🚴</div>
+                <div class="trajet-title">Vélo (trajet alternatif)</div>
+              </div>
+              <div class="trajet-stats">
+                <div class="trajet-stat">
+                  <div class="trajet-stat-value">${distVelo}</div>
+                  <div class="trajet-stat-label">km</div>
+                </div>
+                <div class="trajet-stat">
+                  <div class="trajet-stat-value">${dureeVelo}</div>
+                  <div class="trajet-stat-label">min</div>
+                </div>
+              </div>
+            </div>
+          `;
+        } catch (e) {
+          console.error('Erreur GeoJSON vélo:', e);
+        }
+      }
+
+      // Ajuster la vue
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+
+      // Stats globales
+      if (distVoiture > 0) {
+        statsContainer.innerHTML = `
+          <div class="stat-card">
+            <h3>Distance domicile-travail</h3>
+            <div class="stat-value">${distVoiture}</div>
+            <div class="stat-label">kilomètres</div>
           </div>
         `;
       }
 
-      return div;
-    };
-    legend.addTo(map);
+      // Comparaison voiture vs vélo
+      if (distVoiture > 0 && distVelo > 0) {
+        const economieCarburant = (distVoiture * 2 * 220 * 0.08 * 1.8).toFixed(0); // 220 jours/an, 8L/100km, 1.8€/L
+        const co2Evite = (distVoiture * 2 * 220 * 0.12).toFixed(0); // 120g CO2/km
+        const caloriesBrulees = (distVelo * 2 * 220 * 40).toFixed(0); // 40 cal/km
+        const tempsSup = (dureeVelo - dureeVoiture) * 2;
+
+        comparaisonContainer.innerHTML = `
+          <div class="comparaison">
+            <h3>💰 En passant au vélo</h3>
+            <div class="comparaison-item">
+              <span class="comparaison-label">Économies carburant/an</span>
+              <span class="comparaison-value">${economieCarburant} €</span>
+            </div>
+            <div class="comparaison-item">
+              <span class="comparaison-label">CO₂ évité/an</span>
+              <span class="comparaison-value">${co2Evite} kg</span>
+            </div>
+            <div class="comparaison-item">
+              <span class="comparaison-label">Calories brûlées/an</span>
+              <span class="comparaison-value">${caloriesBrulees}</span>
+            </div>
+            <div class="comparaison-item">
+              <span class="comparaison-label">Temps supplémentaire/jour</span>
+              <span class="comparaison-value">+${tempsSup} min</span>
+            </div>
+          </div>
+
+          <div class="comparaison" style="background: #d1ecf1; border-left-color: #0c5460; margin-top: 15px;">
+            <h3 style="color: #0c5460;">ℹ️ Le saviez-vous ?</h3>
+            <p style="color: #0c5460; font-size: 0.95em; line-height: 1.6;">
+              Vous êtes éligible au <strong>Forfait Mobilités Durables</strong> :
+              jusqu'à <strong>300€/an</strong> pour vos trajets en vélo !
+            </p>
+          </div>
+        `;
+      }
+
+      // Légende
+      const legend = L.control({ position: 'bottomright' });
+      legend.onAdd = function() {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = '<h4>Légende</h4>';
+
+        if (geojsonVoiture) {
+          div.innerHTML += `
+            <div class="legend-item">
+              <div class="legend-line voiture"></div>
+              <span>Trajet voiture</span>
+            </div>
+          `;
+        }
+
+        if (geojsonVelo) {
+          div.innerHTML += `
+            <div class="legend-item">
+              <div class="legend-line velo"></div>
+              <span>Trajet vélo</span>
+            </div>
+          `;
+        }
+
+        return div;
+      };
+      legend.addTo(map);
+    }
 
     // Style pour les icônes emoji
     const style = document.createElement('style');
@@ -501,6 +595,9 @@
       }
     `;
     document.head.appendChild(style);
+
+    // Charger les données au démarrage
+    loadAgentData();
   </script>
 </body>
 </html>
