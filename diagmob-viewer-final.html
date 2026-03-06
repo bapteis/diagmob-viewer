@@ -328,13 +328,36 @@
       maxZoom: 20
     });
 
-    // Démarrer avec CyclOSM si une polyline vélo est présente
-    (polylineVelo ? layerCyclo : layerOSM).addTo(map);
+    // Démarrer toujours sur OpenStreetMap (l'utilisateur peut basculer sur CyclOSM)
+    layerOSM.addTo(map);
 
-    L.control.layers(
+    const layerControl = L.control.layers(
       { 'OpenStreetMap': layerOSM, '🚴 CyclOSM (pistes cyclables)': layerCyclo },
       {}, { position: 'topright', collapsed: false }
     ).addTo(map);
+
+    // Légende CyclOSM : s'affiche uniquement quand CyclOSM est actif
+    const legendCyclo = L.control({ position: 'bottomleft' });
+    legendCyclo.onAdd = () => {
+      const div = L.DomUtil.create('div');
+      div.style.cssText = 'background:white;padding:10px 14px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.2);font-size:0.8em;line-height:1.6';
+      div.innerHTML = `
+        <strong style="display:block;margin-bottom:6px">🚴 CyclOSM — Légende</strong>
+        <span style="display:inline-block;width:22px;height:4px;background:#0000ff;border-radius:2px;vertical-align:middle"></span> Piste cyclable séparée<br>
+        <span style="display:inline-block;width:22px;height:4px;background:#007700;border-radius:2px;vertical-align:middle"></span> Voie verte / chemin<br>
+        <span style="display:inline-block;width:22px;height:4px;background:#ff6600;border-radius:2px;vertical-align:middle"></span> Bande cyclable sur route<br>
+        <span style="display:inline-block;width:22px;height:4px;background:#aaaaaa;border-radius:2px;vertical-align:middle"></span> Route partagée
+      `;
+      return div;
+    };
+
+    map.on('baselayerchange', (e) => {
+      if (e.name.includes('CyclOSM')) {
+        legendCyclo.addTo(map);
+      } else {
+        legendCyclo.remove();
+      }
+    });
 
     // ═══════════════════════════════════════════════════════════════
     // AFFICHAGE DES TRAJETS
@@ -458,16 +481,15 @@
     // Comparaison voiture vs vélo
     if (distVoiture > 0 && distVelo > 0) {
       // Hypothèses : 220 jours/an, aller-retour, carburant ~0.13 €/km (7L/100 × 1.85 €/L)
-      const JOURS_AN = 220;
-      const COUT_CARB_KM  = 0.13;   // €/km carburant seul
+      const JOURS_MOIS    = Math.round(220 / 12);  // ≈ 18 jours travaillés/mois
       const COUT_TOTAL_KM = 0.25;   // €/km coût total (carburant + entretien + usure)
-      const CO2_KM        = 0.12;   // kg CO₂/km (ADEME, voiture thermique moyenne)
-      const KCAL_KM_VELO  = 40;     // kcal/km à vélo (valeur indicative)
+      const CO2_KM        = 0.22;   // kg CO₂/km (ADEME, voiture thermique moyenne)
+      const KCAL_KM_VELO  = 40;     // kcal/km à vélo
 
-      const kmAR = distVoiture * 2 * JOURS_AN;
-      const economieCarburant = Math.round(kmAR * COUT_TOTAL_KM);
-      const co2Evite          = Math.round(kmAR * CO2_KM);
-      const kcalAn            = Math.round(distVelo * 2 * JOURS_AN * KCAL_KM_VELO);
+      const kmAR_mois         = distVoiture * 2 * JOURS_MOIS;
+      const economieMois      = Math.round(kmAR_mois * COUT_TOTAL_KM);
+      const co2EviteMois      = Math.round(kmAR_mois * CO2_KM * 10) / 10;
+      const kcalMois          = Math.round(distVelo * 2 * JOURS_MOIS * KCAL_KM_VELO);
       const tempsDiff         = dureeVelo - dureeVoiture;  // min par trajet
       const tempsSigne        = tempsDiff >= 0 ? `+${tempsDiff}` : `${tempsDiff}`;
 
@@ -475,16 +497,16 @@
         <div class="comparaison">
           <h3>💰 En passant au vélo</h3>
           <div class="comparaison-item">
-            <span class="comparaison-label">Économies estimées/an <small style="color:#888">(carburant + entretien)</small></span>
-            <span class="comparaison-value">${economieCarburant} €</span>
+            <span class="comparaison-label">Économies estimées/mois <small style="color:#888">(carburant + entretien, ~${JOURS_MOIS} j/mois)</small></span>
+            <span class="comparaison-value">${economieMois} €</span>
           </div>
           <div class="comparaison-item">
-            <span class="comparaison-label">CO₂ évité/an <small style="color:#888">(0,12 kg/km, ADEME)</small></span>
-            <span class="comparaison-value">${co2Evite} kg</span>
+            <span class="comparaison-label">CO₂ évité/mois <small style="color:#888">(0,22 kg/km, ADEME)</small></span>
+            <span class="comparaison-value">${co2EviteMois} kg</span>
           </div>
           <div class="comparaison-item">
-            <span class="comparaison-label">Calories brûlées/an <small style="color:#888">(40 kcal/km)</small></span>
-            <span class="comparaison-value">${kcalAn.toLocaleString('fr-FR')} kcal</span>
+            <span class="comparaison-label">Calories brûlées/mois <small style="color:#888">(40 kcal/km)</small></span>
+            <span class="comparaison-value">${kcalMois.toLocaleString('fr-FR')} kcal</span>
           </div>
           <div class="comparaison-item">
             <span class="comparaison-label">Temps de trajet (vélo vs voiture)</span>
