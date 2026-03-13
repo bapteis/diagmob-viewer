@@ -289,6 +289,52 @@
     // ═══════════════════════════════════════════════════════════════
     const params = new URLSearchParams(window.location.search);
 
+    // ─── Barre de répartition des surfaces cyclables ─────────────────
+    const SURFACE_COLORS = {
+      'piste cyclable':  '#16a34a',
+      'voie verte':      '#22c55e',
+      'piste':           '#16a34a',
+      'rue locale':      '#6b7280',
+      'route secondaire':'#f59e0b',
+      'route principale':'#ef4444',
+      'chemin':          '#92400e',
+      'voie piétonne':   '#3b82f6',
+      'trottoir':        '#3b82f6',
+    };
+    function surfaceColor(label) {
+      const key = label.toLowerCase();
+      for (const [k, c] of Object.entries(SURFACE_COLORS)) {
+        if (key.includes(k)) return c;
+      }
+      return '#9ca3af';
+    }
+    function surfacesBar(str) {
+      // Attend le format : "Label XX%, Autre YY%, ..."
+      const segments = [];
+      const re = /([^,]+?)\s+(\d+)%/g;
+      let m;
+      while ((m = re.exec(str)) !== null) {
+        segments.push({ label: m[1].trim(), pct: parseInt(m[2]) });
+      }
+      if (segments.length === 0) return `<div style="margin-top:8px;font-size:0.75em;color:#555">🛣️ ${str}</div>`;
+
+      const bars = segments.map(s =>
+        `<div title="${s.label} ${s.pct}%" style="width:${s.pct}%;background:${surfaceColor(s.label)};height:100%;display:inline-block"></div>`
+      ).join('');
+      const legend = segments.map(s =>
+        `<span style="display:inline-flex;align-items:center;gap:3px;margin-right:8px;white-space:nowrap">
+          <span style="width:10px;height:10px;border-radius:2px;background:${surfaceColor(s.label)};flex-shrink:0;display:inline-block"></span>
+          ${s.label} <strong>${s.pct}%</strong>
+        </span>`
+      ).join('');
+
+      return `<div style="margin-top:10px">
+        <div style="font-size:0.72em;font-weight:600;color:#555;margin-bottom:4px">🛣️ Revêtement du trajet</div>
+        <div style="height:10px;border-radius:5px;overflow:hidden;background:#e5e7eb;display:flex">${bars}</div>
+        <div style="margin-top:5px;font-size:0.70em;color:#555;line-height:1.8;flex-wrap:wrap;display:flex">${legend}</div>
+      </div>`;
+    }
+
     const polylineVoiture = params.get('pv') || params.get('polyline_voiture');
     const polylineVelo = params.get('pb') || params.get('polyline_velo');
     const distVoiture = parseFloat(params.get('dv') || params.get('dist_voiture') || 0);
@@ -461,9 +507,7 @@
                 <div class="trajet-stat-label">m D+</div>
               </div>` : ''}
             </div>
-            ${surfaces ? `<div style="margin-top:8px;font-size:0.75em;color:#555;line-height:1.5">
-              <span style="font-weight:600;color:#388e3c">🛣️ Revêtement :</span> ${surfaces}
-            </div>` : ''}
+            ${surfaces ? surfacesBar(surfaces) : ''}
           </div>
         `;
       } catch (e) {
