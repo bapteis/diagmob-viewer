@@ -318,41 +318,21 @@ if (membres.length === 0) {
     legendItems.push({ color: '#6d28d9', label: 'Aires covoiturage (travail)' });
   }
 
-  // Zones de croisement / points de rendez-vous
-  if (zonesRdv.length > 0) {
-    sidebarParts.push(`<div class="section-title">🤝 Points de rendez-vous potentiels</div>`);
-    zonesRdv.forEach((z, zi) => {
-      const zNum = zi + 1;
-      // Cercle de 1 km autour du point de croisement
-      L.circle([z.lat, z.lon], {
-        radius: 1000,
-        color: '#ea580c',
-        fillColor: '#fb923c',
-        fillOpacity: 0.12,
-        weight: 2,
-      }).addTo(map);
-      // Marqueur central
-      L.marker([z.lat, z.lon], { icon: buildIcon('🤝', '#ea580c') })
+  // Aires de covoiturage sur les itinéraires (zones de croisement)
+  const spotsEnRoute = zonesRdv.flatMap(z => z.spots);
+  if (spotsEnRoute.length > 0) {
+    sidebarParts.push(`<div class="section-title">🅿️ Aires de covoiturage sur les itinéraires</div>`);
+    spotsEnRoute.forEach(s => {
+      L.marker([s.lat, s.lon], { icon: buildIcon('🅿️', '#ea580c') })
         .addTo(map)
-        .bindPopup(`<strong>🤝 Zone de rendez-vous ${zNum}</strong><br>
-          <small>Point de convergence des trajets — les membres peuvent se retrouver ici pour covoiturer.</small><br>
-          <small style="color:#888;font-style:italic">Zone calculée sur la base des trajets routiers — le point de rendez-vous réel peut varier selon l'itinéraire habituel.</small>
-          ${z.spots.length > 0 ? '<br><em>🅿️ ' + z.spots.map(s => s.name).join(', ') + ' à proximité</em>' : ''}`);
-      bounds.extend([z.lat, z.lon]);
-      // Parkings BNLC proches de cette zone
-      z.spots.forEach(s => {
-        L.marker([s.lat, s.lon], { icon: buildIcon('🅿️', '#ea580c') })
-          .addTo(map)
-          .bindPopup(`<strong>🅿️ ${s.name}</strong>${s.type ? '<br><em>' + s.type + '</em>' : ''}<br><small style="color:#ea580c">Zone rendez-vous ${zNum}</small>`);
-        bounds.extend([s.lat, s.lon]);
-        sidebarParts.push(`<div class="parking-card" style="border-left:3px solid #ea580c">
-          <div class="pk-name">🅿️ ${s.name}</div>
-          ${s.type ? `<div class="pk-info">${s.type}</div>` : ''}
-          <div class="pk-info" style="color:#ea580c;font-size:0.78em">Zone rendez-vous ${zNum}</div>
-        </div>`);
-      });
+        .bindPopup(`<strong>🅿️ ${s.name}</strong>${s.type ? '<br><em>' + s.type + '</em>' : ''}`);
+      bounds.extend([s.lat, s.lon]);
+      sidebarParts.push(`<div class="parking-card" style="border-left:3px solid #ea580c">
+        <div class="pk-name">🅿️ ${s.name}</div>
+        ${s.type ? `<div class="pk-info">${s.type}</div>` : ''}
+      </div>`);
     });
-    legendItems.push({ color: '#ea580c', label: 'Zones de rendez-vous' });
+    legendItems.push({ color: '#ea580c', label: 'Aires covoiturage (itinéraires)' });
   }
 
   document.getElementById('sidebar-body').innerHTML = sidebarParts.join('');
