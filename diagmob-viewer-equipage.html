@@ -64,12 +64,16 @@
     .info-item .k { font-size: 0.68em; color: #888; text-transform: uppercase; letter-spacing: 0.3px; }
     .info-item .v { font-size: 0.85em; font-weight: 600; color: #333; margin-top: 2px; }
 
-    .gmaps-btn {
-      display: block; text-align: center; background: #1a73e8; color: white;
-      text-decoration: none; padding: 12px; border-radius: 8px;
-      font-weight: 600; font-size: 0.9em; margin-top: 16px;
+    .parking-card {
+      background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px;
+      padding: 10px 12px; margin-bottom: 8px; font-size: 0.82em;
     }
-    .gmaps-btn:hover { background: #1558b0; }
+    .parking-card .pk-name { font-weight: 600; color: #1a1a2e; margin-bottom: 2px; }
+    .parking-card .pk-info { color: #666; }
+    .section-title {
+      font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.5px;
+      color: #888; font-weight: 600; margin: 16px 0 8px;
+    }
 
     .error-box {
       background: #fdecea; border: 1px solid #f5c6c6; border-radius: 8px;
@@ -163,6 +167,39 @@ for (let n = 1; n <= nb; n++) {
   });
 }
 
+// Lire les parkings BNLC proches du lieu de travail : pk1_..., pk2_..., etc. (max 5)
+const parkings = [];
+for (let n = 1; n <= 5; n++) {
+  const lat = parseFloat(p(`pk${n}_lat`));
+  const lon = parseFloat(p(`pk${n}_lon`));
+  if (!isFinite(lat) || !isFinite(lon)) continue;
+  parkings.push({
+    name: p(`pk${n}_name`) || 'Aire de covoiturage',
+    type: p(`pk${n}_type`) || '',
+    lat, lon,
+  });
+}
+
+// Lire les zones de croisement/rendez-vous : z1_lat, z1_lon, z1_p1_n, etc. (max 3 zones, 2 parkings/zone)
+const zonesRdv = [];
+for (let n = 1; n <= 3; n++) {
+  const lat = parseFloat(p(`z${n}_lat`));
+  const lon = parseFloat(p(`z${n}_lon`));
+  if (!isFinite(lat) || !isFinite(lon)) continue;
+  const spots = [];
+  for (let m = 1; m <= 2; m++) {
+    const sLat = parseFloat(p(`z${n}_p${m}_lat`));
+    const sLon = parseFloat(p(`z${n}_p${m}_lon`));
+    if (!isFinite(sLat) || !isFinite(sLon)) continue;
+    spots.push({
+      name: p(`z${n}_p${m}_n`) || 'Aire de covoiturage',
+      type: p(`z${n}_p${m}_t`) || '',
+      lat: sLat, lon: sLon,
+    });
+  }
+  zonesRdv.push({ lat, lon, spots });
+}
+
 // ─── Initialisation carte ────────────────────────────────────────────
 const map = L.map('map').setView([46.6, 1.9], 6);
 L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
@@ -210,9 +247,6 @@ if (membres.length === 0) {
     bounds.extend([travLat, travLon]);
   }
 
-  // Waypoints Google Maps
-  const gWaypoints = [];
-
   membres.forEach((m, i) => {
     const color = COLORS[i % COLORS.length];
     const bg    = BG[i % BG.length];
@@ -242,7 +276,6 @@ if (membres.length === 0) {
           🕐 Arrivée ${m.h_arr || 'N/A'} · Départ ${m.h_dep || 'N/A'}
         </div>`);
       bounds.extend([m.lat, m.lon]);
-      gWaypoints.push(`${m.lat.toFixed(5)},${m.lon.toFixed(5)}`);
     }
 
     // Card dans sidebar
@@ -269,11 +302,57 @@ if (membres.length === 0) {
       </div>`);
   });
 
-  // Bouton Google Maps
-  if (travLat && travLon) gWaypoints.push(`${travLat.toFixed(5)},${travLon.toFixed(5)}`);
-  if (gWaypoints.length >= 2) {
-    const gUrl = `https://www.google.com/maps/dir/${gWaypoints.join('/')}`;
-    sidebarParts.push(`<a class="gmaps-btn" href="${gUrl}" target="_blank" rel="noopener">🗺️ Ouvrir sur Google Maps</a>`);
+  // Parkings BNLC proches du lieu de travail
+  if (parkings.length > 0) {
+    sidebarParts.push(`<div class="section-title">🅿️ Aires de covoiturage proches du travail</div>`);
+    parkings.forEach(pk => {
+      L.marker([pk.lat, pk.lon], { icon: buildIcon('🅿️', '#6d28d9') })
+        .addTo(map)
+        .bindPopup(`<strong>🅿️ ${pk.name}</strong>${pk.type ? '<br><em>' + pk.type + '</em>' : ''}`);
+      bounds.extend([pk.lat, pk.lon]);
+      sidebarParts.push(`<div class="parking-card">
+        <div class="pk-name">🅿️ ${pk.name}</div>
+        ${pk.type ? `<div class="pk-info">${pk.type}</div>` : ''}
+      </div>`);
+    });
+    legendItems.push({ color: '#6d28d9', label: 'Aires covoiturage (travail)' });
+  }
+
+  // Zones de croisement / points de rendez-vous
+  if (zonesRdv.length > 0) {
+    sidebarParts.push(`<div class="section-title">🤝 Points de rendez-vous potentiels</div>`);
+    zonesRdv.forEach((z, zi) => {
+      const zNum = zi + 1;
+      // Cercle de 1 km autour du point de croisement
+      L.circle([z.lat, z.lon], {
+        radius: 1000,
+        color: '#ea580c',
+        fillColor: '#fb923c',
+        fillOpacity: 0.12,
+        weight: 2,
+      }).addTo(map);
+      // Marqueur central
+      L.marker([z.lat, z.lon], { icon: buildIcon('🤝', '#ea580c') })
+        .addTo(map)
+        .bindPopup(`<strong>🤝 Zone de rendez-vous ${zNum}</strong><br>
+          <small>Point de convergence des trajets — les membres peuvent se retrouver ici pour covoiturer.</small><br>
+          <small style="color:#888;font-style:italic">Zone calculée sur la base des trajets routiers — le point de rendez-vous réel peut varier selon l'itinéraire habituel.</small>
+          ${z.spots.length > 0 ? '<br><em>🅿️ ' + z.spots.map(s => s.name).join(', ') + ' à proximité</em>' : ''}`);
+      bounds.extend([z.lat, z.lon]);
+      // Parkings BNLC proches de cette zone
+      z.spots.forEach(s => {
+        L.marker([s.lat, s.lon], { icon: buildIcon('🅿️', '#ea580c') })
+          .addTo(map)
+          .bindPopup(`<strong>🅿️ ${s.name}</strong>${s.type ? '<br><em>' + s.type + '</em>' : ''}<br><small style="color:#ea580c">Zone rendez-vous ${zNum}</small>`);
+        bounds.extend([s.lat, s.lon]);
+        sidebarParts.push(`<div class="parking-card" style="border-left:3px solid #ea580c">
+          <div class="pk-name">🅿️ ${s.name}</div>
+          ${s.type ? `<div class="pk-info">${s.type}</div>` : ''}
+          <div class="pk-info" style="color:#ea580c;font-size:0.78em">Zone rendez-vous ${zNum}</div>
+        </div>`);
+      });
+    });
+    legendItems.push({ color: '#ea580c', label: 'Zones de rendez-vous' });
   }
 
   document.getElementById('sidebar-body').innerHTML = sidebarParts.join('');
