@@ -295,6 +295,8 @@
     const dureeVoiture = parseInt(params.get('tv') || params.get('duree_voiture') || 0);
     const distVelo = parseFloat(params.get('db') || params.get('dist_velo') || 0);
     const dureeVelo = parseInt(params.get('tb') || params.get('duree_velo') || 0);
+    const denivPos  = parseInt(params.get('deniv') || 0);
+    const surfaces  = params.get('surfaces') || '';
 
     // GPS
     const latDom = parseFloat(params.get('lat_dom') || 0);
@@ -454,7 +456,14 @@
                 <div class="trajet-stat-value">${dureeVelo}</div>
                 <div class="trajet-stat-label">min</div>
               </div>
+              ${denivPos > 0 ? `<div class="trajet-stat">
+                <div class="trajet-stat-value">+${denivPos}</div>
+                <div class="trajet-stat-label">m D+</div>
+              </div>` : ''}
             </div>
+            ${surfaces ? `<div style="margin-top:8px;font-size:0.75em;color:#555;line-height:1.5">
+              <span style="font-weight:600;color:#388e3c">🛣️ Revêtement :</span> ${surfaces}
+            </div>` : ''}
           </div>
         `;
       } catch (e) {
