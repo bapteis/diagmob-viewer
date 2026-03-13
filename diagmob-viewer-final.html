@@ -290,20 +290,27 @@
     const params = new URLSearchParams(window.location.search);
 
     // ─── Barre de répartition des surfaces cyclables ─────────────────
-    const SURFACE_COLORS = {
-      'piste cyclable':  '#16a34a',
-      'voie verte':      '#22c55e',
-      'piste':           '#16a34a',
-      'rue locale':      '#6b7280',
-      'route secondaire':'#f59e0b',
-      'route principale':'#ef4444',
-      'chemin':          '#92400e',
-      'voie piétonne':   '#3b82f6',
-      'trottoir':        '#3b82f6',
-    };
+    const SURFACE_COLORS = [
+      // Types de voies cyclables — ordre : plus précis en premier
+      ['piste cyclable',    '#16a34a'],  // vert foncé
+      ['voie verte',        '#22c55e'],  // vert clair
+      ['coulée verte',      '#22c55e'],
+      ['bande cyclable',    '#84cc16'],  // vert-jaune
+      ['voie piétonne',     '#3b82f6'],  // bleu
+      ['trottoir',          '#60a5fa'],  // bleu clair
+      ['chemin',            '#92400e'],  // marron
+      ['sentier',           '#b45309'],  // marron clair
+      ['route secondaire',  '#f59e0b'],  // orange
+      ['route principale',  '#ef4444'],  // rouge
+      ['rue locale',        '#6b7280'],  // gris
+      ['rue',               '#9ca3af'],  // gris clair
+      ['route',             '#f59e0b'],  // orange (fallback route)
+      ['piste',             '#16a34a'],  // vert (fallback piste)
+      ['inconnu',           '#e2e8f0'],  // gris très clair
+    ];
     function surfaceColor(label) {
       const key = label.toLowerCase();
-      for (const [k, c] of Object.entries(SURFACE_COLORS)) {
+      for (const [k, c] of SURFACE_COLORS) {
         if (key.includes(k)) return c;
       }
       return '#9ca3af';
