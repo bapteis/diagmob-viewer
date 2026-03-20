@@ -513,6 +513,10 @@
                 <div class="trajet-stat-value">+${denivPos}</div>
                 <div class="trajet-stat-label">m D+</div>
               </div>` : ''}
+              <div class="trajet-stat" title="Estimation en vélo à assistance électrique (+33% de vitesse)">
+                <div class="trajet-stat-value">⚡ ~${Math.round(dureeVelo * 2 / 3)}</div>
+                <div class="trajet-stat-label">min en VAE</div>
+              </div>
             </div>
             ${surfaces ? surfacesBar(surfaces) : ''}
           </div>
@@ -552,6 +556,9 @@
       const kcalMois          = Math.round(distVelo * 2 * JOURS_MOIS * KCAL_KM_VELO);
       const tempsDiff         = dureeVelo - dureeVoiture;  // min par trajet
       const tempsSigne        = tempsDiff >= 0 ? `+${tempsDiff}` : `${tempsDiff}`;
+      const dureeVae          = Math.round(dureeVelo * 2 / 3);
+      const tempsDiffVae      = dureeVae - dureeVoiture;
+      const tempsSigneVae     = tempsDiffVae >= 0 ? `+${tempsDiffVae}` : `${tempsDiffVae}`;
 
       comparaisonContainer.innerHTML = `
         <div class="comparaison">
@@ -571,6 +578,10 @@
           <div class="comparaison-item">
             <span class="comparaison-label">Temps de trajet (vélo vs voiture)</span>
             <span class="comparaison-value">${tempsSigne} min/trajet</span>
+          </div>
+          <div class="comparaison-item">
+            <span class="comparaison-label">Temps de trajet (⚡ VAE vs voiture) <small style="color:#888">(+33% vitesse)</small></span>
+            <span class="comparaison-value">${tempsSigneVae} min/trajet</span>
           </div>
         </div>
 
