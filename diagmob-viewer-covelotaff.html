@@ -394,22 +394,71 @@ membres.forEach((m, i) => {
   }
 });
 
-// Zone de croisement approximative (centroïde des domiciles → point intermédiaire vers travail)
-if (membres.length >= 2 && LAT_TRAV && LON_TRAV) {
-  const latMoy = membres.reduce((s, m) => s + (m.latDom || LAT_TRAV), 0) / membres.length;
-  const lonMoy = membres.reduce((s, m) => s + (m.lonDom || LON_TRAV), 0) / membres.length;
-  const latRdv = latMoy * 0.4 + LAT_TRAV * 0.6;
-  const lonRdv = lonMoy * 0.4 + LON_TRAV * 0.6;
+// Point de croisement réel : point de la route du candidat le plus proche de la route du mentor
+// On cherche le point où les deux tracés se rapprochent le plus pour la première fois
+// (en partant du domicile du candidat vers le travail)
+(function() {
+  const mentor    = membres.find(m => m.mentor);
+  const candidats = membres.filter(m => !m.mentor);
+  if (!mentor || !candidats.length || !mentor.pb) return;
 
-  L.circle([latRdv, lonRdv], {
-    radius: 800,
-    color: '#16a34a', fillColor: '#bbf7d0', fillOpacity: 0.25, weight: 2
-  }).addTo(map).bindPopup('🚴 Zone de croisement estimée — point de rendez-vous potentiel');
+  const mentorCoords = routeCoords[membres.indexOf(mentor)];
+  if (!mentorCoords || mentorCoords.length === 0) return;
 
-  L.marker([latRdv, lonRdv], {
-    icon: L.divIcon({ html: '🤝', className: 'emoji-icon', iconSize: [28, 28] })
-  }).addTo(map);
-}
+  // Pour chaque candidat, trouver le point de sa route le plus proche du mentor
+  // puis choisir le premier point (depuis le domicile candidat) sous le seuil de 200m
+  const DEG_PER_M = 1 / 111320; // approximation
+  const SEUIL_M = 250; // distance max en mètres pour considérer qu'ils se croisent
+
+  function dist2(a, b) {
+    const dlat = a[0] - b[0];
+    const dlon = (a[1] - b[1]) * Math.cos(a[0] * Math.PI / 180);
+    return (dlat * dlat + dlon * dlon);
+  }
+  const seuil2 = (SEUIL_M * DEG_PER_M) ** 2;
+
+  let bestPoint = null;
+
+  for (const cand of candidats) {
+    const idx = membres.indexOf(cand);
+    const candCoords = routeCoords[idx];
+    if (!candCoords || candCoords.length === 0) continue;
+
+    // Parcourir les points du candidat depuis le domicile
+    for (const cp of candCoords) {
+      // Trouver le point mentor le plus proche
+      let minD2 = Infinity;
+      for (const mp of mentorCoords) {
+        const d2 = dist2(cp, mp);
+        if (d2 < minD2) minD2 = d2;
+      }
+      if (minD2 <= seuil2) {
+        bestPoint = cp;
+        break; // premier croisement depuis le domicile candidat
+      }
+    }
+  }
+
+  if (!bestPoint && LAT_TRAV && LON_TRAV) {
+    // Fallback : mi-chemin entre domicile candidat et travail si aucun croisement trouvé
+    const c = candidats[0];
+    bestPoint = [
+      (c.latDom || LAT_TRAV) * 0.5 + LAT_TRAV * 0.5,
+      (c.lonDom || LON_TRAV) * 0.5 + LON_TRAV * 0.5
+    ];
+  }
+
+  if (bestPoint) {
+    L.circle(bestPoint, {
+      radius: 200,
+      color: '#16a34a', fillColor: '#bbf7d0', fillOpacity: 0.35, weight: 2
+    }).addTo(map).bindPopup('🚴 Point de croisement des trajets — rendez-vous suggéré');
+
+    L.marker(bestPoint, {
+      icon: L.divIcon({ html: '🤝', className: 'emoji-icon', iconSize: [28, 28] })
+    }).addTo(map);
+  }
+})();
 
 if (bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50] });
 
@@ -465,16 +514,11 @@ function surfacesBar(str) {
 const JOURS_TOUS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
 const sidebar = document.getElementById('sidebar');
 
-// Jours communs
-if (JOURS_COMMUNS.length > 0) {
-  const pills = JOURS_TOUS.map(j =>
-    `<span class="jour-pill ${JOURS_COMMUNS.includes(j) ? 'jour-commun' : 'jour-seul'}">${j.slice(0,3)}</span>`
-  ).join('');
+// Km partagé (sans les pills de jours, déjà visibles par membre)
+if (KM_COMMUN > 0) {
   sidebar.innerHTML += `
     <div class="jours-communs">
-      <h4>📅 Jours en commun</h4>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">${pills}</div>
-      ${KM_COMMUN > 0 ? `<div style="margin-top:8px;font-size:0.8em;color:#166534">🛣️ ${KM_COMMUN} km de trajet partagé</div>` : ''}
+      <div style="font-size:0.85em;color:#166534">🛣️ ${KM_COMMUN} km de trajet partagé</div>
     </div>`;
 }
 
@@ -513,50 +557,12 @@ membres.forEach(m => {
     </div>`;
 });
 
-// Calcul gains (basé sur candidats uniquement)
-const candidats = membres.filter(m => !m.mentor && m.distVoiture > 0);
-if (candidats.length > 0) {
-  const JOURS_MOIS = Math.round(220 / 12);
-  const COUT_KM = 0.25, CO2_KM = 0.22, KCAL_KM = 40;
-
-  const gains = candidats.map(m => {
-    const kmAR = m.distVoiture * 2 * JOURS_MOIS;
-    return {
-      eco:  Math.round(kmAR * COUT_KM),
-      co2:  Math.round(kmAR * CO2_KM * 10) / 10,
-      kcal: Math.round(m.dist * 2 * JOURS_MOIS * KCAL_KM),
-      tempsDiff: m.duree - m.dureeVoiture,
-      tempsVae:  Math.round(m.duree * 2 / 3) - m.dureeVoiture,
-    };
-  });
-
-  const avg = (arr, key) => Math.round(arr.reduce((s, x) => s + x[key], 0) / arr.length);
-  const eco  = avg(gains, 'eco');
-  const co2  = (gains.reduce((s, x) => s + x.co2, 0) / gains.length).toFixed(1);
-  const kcal = avg(gains, 'kcal');
-  const td   = avg(gains, 'tempsDiff');
-  const tv   = avg(gains, 'tempsVae');
-  const tds  = td >= 0 ? `+${td}` : `${td}`;
-  const tvs  = tv >= 0 ? `+${tv}` : `${tv}`;
-
-  sidebar.innerHTML += `
-    <div class="gains-card">
-      <h3>💰 En passant au vélo</h3>
-      <div class="gain-item"><span>Économies estimées/mois</span><span class="gain-val">${eco} €</span></div>
-      <div class="gain-item"><span>CO₂ évité/mois <small style="color:#a16207">(0,22 kg/km)</small></span><span class="gain-val">${co2} kg</span></div>
-      <div class="gain-item"><span>Calories/mois <small style="color:#a16207">(40 kcal/km)</small></span><span class="gain-val">${kcal.toLocaleString('fr-FR')} kcal</span></div>
-      <div class="gain-item"><span>Temps trajet (vélo vs voiture)</span><span class="gain-val">${tds} min/trajet</span></div>
-      <div class="gain-item"><span>Temps trajet (⚡ VAE vs voiture)</span><span class="gain-val">${tvs} min/trajet</span></div>
-    </div>`;
-}
-
 // Info covélotaff
 sidebar.innerHTML += `
   <div class="info-card">
     <strong>🤝 Comment fonctionne le covélotaff ?</strong>
     Le mentor est un collègue qui fait déjà le trajet à vélo et qui peut vous accompagner
-    le temps de prendre confiance. C'est gratuit, sans engagement, et souvent plus rapide
-    qu'on ne le croit !
+    le temps de prendre confiance.
     <br><br>
     <strong>💡 Le Forfait Mobilités Durables</strong> vous rembourse jusqu'à <strong>300 €/an</strong>
     pour vos trajets en vélo — renseignez-vous auprès de votre service RH.
