@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DiagMob - Covélotaff</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #16a34a 0%, #064e3b 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .header {
+      background: linear-gradient(135deg, #16a34a 0%, #064e3b 100%);
+      color: white;
+      padding: 24px 30px;
+      border-radius: 16px 16px 0 0;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .header-text h1 { font-size: 1.7em; margin-bottom: 4px; }
+    .header-text p  { font-size: 0.95em; opacity: 0.85; }
+
+    .badge-eq {
+      background: rgba(255,255,255,0.2);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85em;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 370px 1fr;
+    }
+
+    .sidebar {
+      padding: 24px;
+      border-right: 1px solid #e5e7eb;
+      max-height: 82vh;
+      overflow-y: auto;
+      background: #f9fafb;
+    }
+
+    #map { height: 82vh; min-height: 600px; }
+
+    /* ─── Membre card ─── */
+    .membre-card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+      border-left: 5px solid #ccc;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+    }
+
+    .membre-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .dot-color {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .membre-name {
+      font-weight: 700;
+      font-size: 1.05em;
+      color: #111;
+      flex: 1;
+    }
+
+    .badge-mentor {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75em;
+      font-weight: 600;
+    }
+
+    .badge-candidat {
+      background: #dbeafe;
+      color: #1e40af;
+      border: 1px solid #93c5fd;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75em;
+      font-weight: 600;
+    }
+
+    .membre-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .mstat {
+      text-align: center;
+      background: #f3f4f6;
+      border-radius: 8px;
+      padding: 8px 4px;
+    }
+
+    .mstat-val { font-size: 1.2em; font-weight: 700; color: #111; }
+    .mstat-lbl { font-size: 0.7em; color: #6b7280; margin-top: 2px; }
+
+    .schedule {
+      font-size: 0.8em;
+      color: #374151;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .jour-pill {
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+      font-size: 0.85em;
+    }
+
+    .jour-commun   { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+    .jour-seul     { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+
+    /* ─── Jours communs ─── */
+    .jours-communs {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+    }
+
+    .jours-communs h4 { color: #166534; font-size: 0.85em; margin-bottom: 6px; }
+
+    /* ─── Gains section ─── */
+    .gains-card {
+      background: #fff7ed;
+      border-left: 4px solid #f59e0b;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .gains-card h3 { color: #92400e; font-size: 0.95em; margin-bottom: 12px; }
+
+    .gain-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid #fde68a;
+      font-size: 0.88em;
+    }
+
+    .gain-item:last-child { border-bottom: none; }
+    .gain-val { font-weight: 700; color: #16a34a; }
+
+    /* ─── Info covélotaff ─── */
+    .info-card {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 0.85em;
+      color: #1e40af;
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+
+    .info-card strong { display: block; margin-bottom: 4px; }
+
+    /* ─── Surface bar ─── */
+    .surface-wrap { margin-top: 10px; }
+    .surface-title { font-size: 0.7em; font-weight: 600; color: #555; margin-bottom: 4px; }
+    .surface-bar {
+      height: 8px; border-radius: 4px;
+      overflow: hidden; background: #e5e7eb;
+      display: flex;
+    }
+    .surface-legend { margin-top: 4px; font-size: 0.68em; color: #555; display: flex; flex-wrap: wrap; gap: 6px; }
+
+    /* ─── Leaflet legend ─── */
+    .map-legend {
+      background: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      font-size: 0.8em;
+      line-height: 1.8;
+    }
+
+    .map-legend h4 { margin-bottom: 6px; font-size: 0.9em; }
+
+    .leg-line {
+      display: inline-block;
+      width: 26px; height: 4px;
+      border-radius: 2px;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    .emoji-icon {
+      background: none !important;
+      border: none !important;
+      text-align: center;
+      line-height: 30px;
+      font-size: 22px;
+    }
+
+    @media (max-width: 1024px) {
+      .content { grid-template-columns: 1fr; }
+      .sidebar { max-height: none; border-right: none; border-bottom: 1px solid #e5e7eb; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div style="font-size:2.5em">🚴</div>
+    <div class="header-text">
+      <h1>Covélotaff — Venir au travail à vélo ensemble</h1>
+      <p>Un mentor vous accompagne sur votre trajet quotidien</p>
+    </div>
+    <div id="badge-eq" class="badge-eq" style="margin-left:auto"></div>
+  </div>
+
+  <div class="content">
+    <div class="sidebar" id="sidebar"></div>
+    <div id="map"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+// DÉCODEUR POLYLINE
+// ══════════════════════════════════════════════════════
+const polyline = {
+  decode(str) {
+    if (!str) return [];
+    let idx = 0, lat = 0, lng = 0, out = [];
+    while (idx < str.length) {
+      let b, shift = 0, result = 0;
+      do { b = str.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+      shift = 0; result = 0;
+      do { b = str.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+      out.push([lat / 1e5, lng / 1e5]);
+    }
+    return out;
+  }
+};
+
+// ══════════════════════════════════════════════════════
+// PARAMÈTRES URL
+// ══════════════════════════════════════════════════════
+const p = new URLSearchParams(window.location.search);
+
+const EQ_ID        = p.get('eq_id') || '';
+const JOURS_COMMUNS = (p.get('jours_communs') || '').split(',').filter(Boolean);
+const KM_COMMUN    = parseFloat(p.get('km_commun') || 0);
+const LAT_TRAV     = parseFloat(p.get('lat_trav') || 0);
+const LON_TRAV     = parseFloat(p.get('lon_trav') || 0);
+
+// Couleurs par membre
+const COLORS = ['#16a34a', '#2563eb', '#9333ea', '#f59e0b'];
+
+// Lire jusqu'à 4 membres
+const membres = [];
+for (let i = 1; i <= 4; i++) {
+  const n = p.get(`m${i}_n`);
+  if (!n) break;
+  membres.push({
+    nom:     n,
+    jours:   (p.get(`m${i}_jours`) || '').split(',').filter(Boolean),
+    arrivee: p.get(`m${i}_arrivee`) || '',
+    depart:  p.get(`m${i}_depart`) || '',
+    pb:      p.get(`m${i}_pb`) || '',
+    dist:    parseFloat(p.get(`m${i}_dist`) || 0),
+    duree:   parseInt(p.get(`m${i}_duree`) || 0),
+    dureeVoiture: parseInt(p.get(`m${i}_tv`) || 0),
+    distVoiture:  parseFloat(p.get(`m${i}_dv`) || 0),
+    surfaces: p.get(`m${i}_surfaces`) || '',
+    mentor:  p.get(`m${i}_mentor`) === '1',
+    latDom:  parseFloat(p.get(`m${i}_lat`) || 0),
+    lonDom:  parseFloat(p.get(`m${i}_lon`) || 0),
+    color:   COLORS[(i - 1) % COLORS.length],
+  });
+}
+
+document.getElementById('badge-eq').textContent = EQ_ID || 'Covélotaff';
+
+// ══════════════════════════════════════════════════════
+// CARTE — CyclOSM par défaut
+// ══════════════════════════════════════════════════════
+const map = L.map('map').setView([46.6, 1.88], 6);
+
+const layerOSM = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19
+});
+const layerCyclo = L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap | <a href="https://www.cyclosm.org">CyclOSM</a>',
+  maxZoom: 20
+});
+layerCyclo.addTo(map); // CyclOSM par défaut !
+
+L.control.layers(
+  { '🚴 CyclOSM (pistes cyclables)': layerCyclo, 'OpenStreetMap': layerOSM },
+  {}, { position: 'topright', collapsed: false }
+).addTo(map);
+
+// Légende CyclOSM fixe
+const legendCyclo = L.control({ position: 'bottomleft' });
+legendCyclo.onAdd = () => {
+  const div = L.DomUtil.create('div', 'map-legend');
+  div.innerHTML = `
+    <strong style="display:block;margin-bottom:4px">🚴 CyclOSM — Légende</strong>
+    <span style="display:inline-block;width:22px;height:4px;background:#0000ff;border-radius:2px;vertical-align:middle"></span> Piste cyclable<br>
+    <span style="display:inline-block;width:22px;height:4px;background:#007700;border-radius:2px;vertical-align:middle"></span> Voie verte / chemin<br>
+    <span style="display:inline-block;width:22px;height:4px;background:#ff6600;border-radius:2px;vertical-align:middle"></span> Bande cyclable<br>
+    <span style="display:inline-block;width:22px;height:4px;background:#aaaaaa;border-radius:2px;vertical-align:middle"></span> Route partagée
+  `;
+  return div;
+};
+legendCyclo.addTo(map);
+
+map.on('baselayerchange', e => {
+  if (e.name.includes('CyclOSM')) legendCyclo.addTo(map);
+  else legendCyclo.remove();
+});
+
+const bounds = L.latLngBounds([]);
+
+// Marqueur travail
+if (LAT_TRAV && LON_TRAV) {
+  L.marker([LAT_TRAV, LON_TRAV], {
+    icon: L.divIcon({ html: '🏢', className: 'emoji-icon', iconSize: [30, 30] })
+  }).addTo(map).bindPopup('Lieu de travail commun');
+  bounds.extend([LAT_TRAV, LON_TRAV]);
+}
+
+// Tracés et marqueurs domicile
+const routeCoords = [];
+membres.forEach((m, i) => {
+  if (m.latDom && m.lonDom) {
+    L.marker([m.latDom, m.lonDom], {
+      icon: L.divIcon({ html: m.mentor ? '⭐' : '🏠', className: 'emoji-icon', iconSize: [30, 30] })
+    }).addTo(map).bindPopup(`${m.mentor ? '⭐ Mentor : ' : ''}${m.nom}`);
+    bounds.extend([m.latDom, m.lonDom]);
+  }
+
+  if (m.pb) {
+    try {
+      const coords = polyline.decode(m.pb);
+      routeCoords.push(coords);
+      L.polyline(coords, {
+        color: m.color,
+        weight: m.mentor ? 5 : 4,
+        opacity: 0.85,
+        dashArray: m.mentor ? null : '8,4',
+        smoothFactor: 2
+      }).addTo(map).bindPopup(`${m.mentor ? '⭐ ' : ''}${m.nom} — ${m.dist} km, ${m.duree} min`);
+      bounds.extend(coords);
+    } catch(e) {}
+  }
+});
+
+// Zone de croisement approximative (centroïde des domiciles → point intermédiaire vers travail)
+if (membres.length >= 2 && LAT_TRAV && LON_TRAV) {
+  const latMoy = membres.reduce((s, m) => s + (m.latDom || LAT_TRAV), 0) / membres.length;
+  const lonMoy = membres.reduce((s, m) => s + (m.lonDom || LON_TRAV), 0) / membres.length;
+  const latRdv = latMoy * 0.4 + LAT_TRAV * 0.6;
+  const lonRdv = lonMoy * 0.4 + LON_TRAV * 0.6;
+
+  L.circle([latRdv, lonRdv], {
+    radius: 800,
+    color: '#16a34a', fillColor: '#bbf7d0', fillOpacity: 0.25, weight: 2
+  }).addTo(map).bindPopup('🚴 Zone de croisement estimée — point de rendez-vous potentiel');
+
+  L.marker([latRdv, lonRdv], {
+    icon: L.divIcon({ html: '🤝', className: 'emoji-icon', iconSize: [28, 28] })
+  }).addTo(map);
+}
+
+if (bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50] });
+
+// Légende des tracés
+const legendTrajets = L.control({ position: 'bottomright' });
+legendTrajets.onAdd = () => {
+  const div = L.DomUtil.create('div', 'map-legend');
+  div.innerHTML = '<h4>Trajets</h4>';
+  membres.forEach(m => {
+    div.innerHTML += `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span class="leg-line" style="background:${m.color};${m.mentor ? '' : 'border-top:2px dashed ' + m.color + ';background:none;height:0'}"></span>
+        <span>${m.mentor ? '⭐ ' : ''}${m.nom}</span>
+      </div>`;
+  });
+  return div;
+};
+legendTrajets.addTo(map);
+
+// ══════════════════════════════════════════════════════
+// BARRE SURFACES
+// ══════════════════════════════════════════════════════
+const SURFACE_COLORS = [
+  ['piste cyclable','#16a34a'],['voie verte','#22c55e'],['bande cyclable','#84cc16'],
+  ['voie piétonne','#3b82f6'],['trottoir','#60a5fa'],['chemin','#92400e'],
+  ['sentier','#b45309'],['route secondaire','#f59e0b'],['route principale','#ef4444'],
+  ['rue locale','#6b7280'],['inconnu','#e2e8f0'],
+];
+function surfaceColor(label) {
+  const k = label.toLowerCase();
+  for (const [n, c] of SURFACE_COLORS) if (k.includes(n)) return c;
+  return '#9ca3af';
+}
+function surfacesBar(str) {
+  const segs = [];
+  const re = /([^,]+?)\s+(\d+)%/g; let m;
+  while ((m = re.exec(str)) !== null) segs.push({ label: m[1].trim(), pct: parseInt(m[2]) });
+  if (!segs.length) return '';
+  const bars   = segs.map(s => `<div style="width:${s.pct}%;background:${surfaceColor(s.label)};height:100%"></div>`).join('');
+  const legend = segs.map(s => `<span style="display:inline-flex;align-items:center;gap:3px">
+    <span style="width:9px;height:9px;border-radius:2px;background:${surfaceColor(s.label)};display:inline-block"></span>
+    ${s.label} <strong>${s.pct}%</strong></span>`).join('');
+  return `<div class="surface-wrap">
+    <div class="surface-title">🛣️ Types de voies</div>
+    <div class="surface-bar">${bars}</div>
+    <div class="surface-legend">${legend}</div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// SIDEBAR
+// ══════════════════════════════════════════════════════
+const JOURS_TOUS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
+const sidebar = document.getElementById('sidebar');
+
+// Jours communs
+if (JOURS_COMMUNS.length > 0) {
+  const pills = JOURS_TOUS.map(j =>
+    `<span class="jour-pill ${JOURS_COMMUNS.includes(j) ? 'jour-commun' : 'jour-seul'}">${j.slice(0,3)}</span>`
+  ).join('');
+  sidebar.innerHTML += `
+    <div class="jours-communs">
+      <h4>📅 Jours en commun</h4>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${pills}</div>
+      ${KM_COMMUN > 0 ? `<div style="margin-top:8px;font-size:0.8em;color:#166534">🛣️ ${KM_COMMUN} km de trajet partagé</div>` : ''}
+    </div>`;
+}
+
+// Cartes membres
+membres.forEach(m => {
+  const dureeVae = m.duree > 0 ? Math.round(m.duree * 2 / 3) : 0;
+  const pillsJours = JOURS_TOUS.map(j =>
+    `<span class="jour-pill ${JOURS_COMMUNS.includes(j) && m.jours.includes(j) ? 'jour-commun' : (m.jours.includes(j) ? 'jour-seul' : '')}">
+      ${m.jours.includes(j) ? j.slice(0,3) : ''}
+    </span>`
+  ).filter(s => s.includes(j => m.jours.includes(j)));
+
+  const joursPills = m.jours.map(j =>
+    `<span class="jour-pill ${JOURS_COMMUNS.includes(j) ? 'jour-commun' : 'jour-seul'}">${j.slice(0,3)}</span>`
+  ).join('');
+
+  sidebar.innerHTML += `
+    <div class="membre-card" style="border-left-color:${m.color}">
+      <div class="membre-header">
+        <div class="dot-color" style="background:${m.color}"></div>
+        <div class="membre-name">${m.nom}</div>
+        <span class="${m.mentor ? 'badge-mentor' : 'badge-candidat'}">${m.mentor ? '⭐ Mentor' : '🚗 Candidat'}</span>
+      </div>
+      ${m.dist > 0 ? `
+      <div class="membre-stats">
+        <div class="mstat"><div class="mstat-val">${m.dist}</div><div class="mstat-lbl">km vélo</div></div>
+        <div class="mstat"><div class="mstat-val">${m.duree}</div><div class="mstat-lbl">min vélo</div></div>
+        <div class="mstat"><div class="mstat-val">⚡ ~${dureeVae}</div><div class="mstat-lbl">min VAE</div></div>
+      </div>` : ''}
+      <div class="schedule">
+        <span style="color:#374151;font-weight:600;width:100%">🗓️ Jours sur site :</span>
+        ${joursPills}
+        ${m.arrivee ? `<span style="color:#374151;margin-top:4px;width:100%">⏰ ${m.arrivee} → ${m.depart}</span>` : ''}
+      </div>
+      ${m.surfaces ? surfacesBar(m.surfaces) : ''}
+    </div>`;
+});
+
+// Calcul gains (basé sur candidats uniquement)
+const candidats = membres.filter(m => !m.mentor && m.distVoiture > 0);
+if (candidats.length > 0) {
+  const JOURS_MOIS = Math.round(220 / 12);
+  const COUT_KM = 0.25, CO2_KM = 0.22, KCAL_KM = 40;
+
+  const gains = candidats.map(m => {
+    const kmAR = m.distVoiture * 2 * JOURS_MOIS;
+    return {
+      eco:  Math.round(kmAR * COUT_KM),
+      co2:  Math.round(kmAR * CO2_KM * 10) / 10,
+      kcal: Math.round(m.dist * 2 * JOURS_MOIS * KCAL_KM),
+      tempsDiff: m.duree - m.dureeVoiture,
+      tempsVae:  Math.round(m.duree * 2 / 3) - m.dureeVoiture,
+    };
+  });
+
+  const avg = (arr, key) => Math.round(arr.reduce((s, x) => s + x[key], 0) / arr.length);
+  const eco  = avg(gains, 'eco');
+  const co2  = (gains.reduce((s, x) => s + x.co2, 0) / gains.length).toFixed(1);
+  const kcal = avg(gains, 'kcal');
+  const td   = avg(gains, 'tempsDiff');
+  const tv   = avg(gains, 'tempsVae');
+  const tds  = td >= 0 ? `+${td}` : `${td}`;
+  const tvs  = tv >= 0 ? `+${tv}` : `${tv}`;
+
+  sidebar.innerHTML += `
+    <div class="gains-card">
+      <h3>💰 En passant au vélo</h3>
+      <div class="gain-item"><span>Économies estimées/mois</span><span class="gain-val">${eco} €</span></div>
+      <div class="gain-item"><span>CO₂ évité/mois <small style="color:#a16207">(0,22 kg/km)</small></span><span class="gain-val">${co2} kg</span></div>
+      <div class="gain-item"><span>Calories/mois <small style="color:#a16207">(40 kcal/km)</small></span><span class="gain-val">${kcal.toLocaleString('fr-FR')} kcal</span></div>
+      <div class="gain-item"><span>Temps trajet (vélo vs voiture)</span><span class="gain-val">${tds} min/trajet</span></div>
+      <div class="gain-item"><span>Temps trajet (⚡ VAE vs voiture)</span><span class="gain-val">${tvs} min/trajet</span></div>
+    </div>`;
+}
+
+// Info covélotaff
+sidebar.innerHTML += `
+  <div class="info-card">
+    <strong>🤝 Comment fonctionne le covélotaff ?</strong>
+    Le mentor est un collègue qui fait déjà le trajet à vélo et qui peut vous accompagner
+    le temps de prendre confiance. C'est gratuit, sans engagement, et souvent plus rapide
+    qu'on ne le croit !
+    <br><br>
+    <strong>💡 Le Forfait Mobilités Durables</strong> vous rembourse jusqu'à <strong>300 €/an</strong>
+    pour vos trajets en vélo — renseignez-vous auprès de votre service RH.
+  </div>`;
+</script>
+</body>
+</html>
