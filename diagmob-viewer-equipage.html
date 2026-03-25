@@ -140,9 +140,10 @@ function p(key, def) {
   return P.get(key) || def || '';
 }
 
-const eqId = p('eq_id');
-const jours = p('jours');
-const nb    = parseInt(p('nb', '4')) || 4;
+const eqId     = p('eq_id');
+const jours    = p('jours');
+const nb       = parseInt(p('nb', '4')) || 4;
+const kmCommun = parseFloat(p('km_commun')) || 0;
 const travLat = parseFloat(p('trav_lat')) || null;
 const travLon = parseFloat(p('trav_lon')) || null;
 
@@ -204,7 +205,8 @@ for (let n = 1; n <= 3; n++) {
 const map = L.map('map').setView([46.6, 1.9], 6);
 L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
   attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  maxZoom: 19
+  maxZoom: 19,
+  opacity: 0.55
 }).addTo(map);
 
 // ─── Icône cercle coloré ─────────────────────────────────────────────
@@ -231,11 +233,23 @@ if (membres.length === 0) {
   const legendItems = [];
   const sidebarParts = [];
 
-  // Badge jours communs
-  if (jours) {
+  // Helpers horaires
+  function parseMin(t) {
+    if (!t || !t.includes(':')) return null;
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  }
+  const arrTimes = membres.map(m => parseMin(m.h_arr)).filter(t => t !== null);
+  const depTimes = membres.map(m => parseMin(m.h_dep)).filter(t => t !== null);
+  const showArr  = arrTimes.length >= 2 && (Math.max(...arrTimes) - Math.min(...arrTimes)) <= 30;
+  const showDep  = depTimes.length >= 2 && (Math.max(...depTimes) - Math.min(...depTimes)) <= 30;
+  const hasJours = jours && jours.trim().length > 0;
+
+  // Badge "Jour idéal pour tester" + km partagé
+  if (hasJours || kmCommun > 0) {
     sidebarParts.push(`<div class="jours-badge">
-      <span class="lbl">Jours en commun</span>
-      <span class="val">${jours}</span>
+      ${hasJours ? `<span class="lbl">Jour idéal pour tester</span><span class="val">${jours}</span>` : ''}
+      ${kmCommun > 0 ? `<div style="margin-top:6px;font-size:0.8em;color:#1d4ed8">🛣️ ~${kmCommun} km de trajet partagé</div>` : ''}
     </div>`);
   }
 
@@ -288,14 +302,8 @@ if (membres.length === 0) {
             <div class="k">Jours sur site</div>
             <div class="v">${m.jours || 'N/A'}</div>
           </div>
-          <div class="info-item">
-            <div class="k">Arrivée</div>
-            <div class="v">${m.h_arr || 'N/A'}</div>
-          </div>
-          <div class="info-item">
-            <div class="k">Départ</div>
-            <div class="v">${m.h_dep || 'N/A'}</div>
-          </div>
+          ${showArr && m.h_arr ? `<div class="info-item"><div class="k">Arrivée</div><div class="v">${m.h_arr}</div></div>` : ''}
+          ${showDep && m.h_dep ? `<div class="info-item"><div class="k">Départ</div><div class="v">${m.h_dep}</div></div>` : ''}
           ${m.service ? `<div class="info-item" style="grid-column:1/-1"><div class="k">Service</div><div class="v">${m.service}</div></div>` : ''}
           ${m.dist    ? `<div class="info-item" style="grid-column:1/-1"><div class="k">Distance domicile–travail</div><div class="v">${m.dist} km</div></div>` : ''}
         </div>
