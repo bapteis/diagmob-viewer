@@ -291,7 +291,8 @@ const LAT_TRAV     = parseFloat(p.get('lat_trav') || 0);
 const LON_TRAV     = parseFloat(p.get('lon_trav') || 0);
 
 // Couleurs par membre
-const COLORS = ['#16a34a', '#2563eb', '#9333ea', '#f59e0b'];
+// Bleu évité → conflit avec CyclOSM (pistes cyclables en bleu)
+const COLORS = ['#16a34a', '#f97316', '#9333ea', '#e11d48'];
 
 // Lire jusqu'à 4 membres
 const membres = [];
