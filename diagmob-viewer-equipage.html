@@ -129,9 +129,10 @@ function decodePoly(str) {
 }
 
 // ─── Couleurs membres ────────────────────────────────────────────────
-const COLORS   = ['#dc3545', '#fd7e14', '#198754', '#0d6efd'];
-const BG       = ['#fdecea', '#fff3e0', '#e8f5e9', '#e3f2fd'];
-const BD       = ['#f5c6c6', '#ffd699', '#a5d6a7', '#90caf9'];
+// Bleu évité → conflit avec CyclOSM (pistes cyclables en bleu)
+const COLORS   = ['#dc3545', '#fd7e14', '#198754', '#9333ea'];
+const BG       = ['#fdecea', '#fff3e0', '#e8f5e9', '#f5f3ff'];
+const BD       = ['#f5c6c6', '#ffd699', '#a5d6a7', '#d8b4fe'];
 
 // ─── Lecture des paramètres URL ──────────────────────────────────────
 const P = new URLSearchParams(window.location.search);
@@ -150,21 +151,25 @@ const travLon = parseFloat(p('trav_lon')) || null;
 // Lire les membres : m1_..., m2_..., etc.
 const membres = [];
 for (let n = 1; n <= nb; n++) {
-  const lat = parseFloat(p(`m${n}_lat`));
-  const lon = parseFloat(p(`m${n}_lon`));
-  const name = p(`m${n}_name`);
+  const lat     = parseFloat(p(`m${n}_lat`));
+  const lon     = parseFloat(p(`m${n}_lon`));
+  const travLat = parseFloat(p(`m${n}_trav_lat`));
+  const travLon = parseFloat(p(`m${n}_trav_lon`));
+  const name    = p(`m${n}_name`);
   if (!name && (!isFinite(lat) || !isFinite(lon))) continue;
   membres.push({
-    name:    name || `Membre ${n}`,
-    email:   p(`m${n}_email`),
-    service: p(`m${n}_service`),
-    jours:   p(`m${n}_jours`),
-    h_arr:   p(`m${n}_h_arr`),
-    h_dep:   p(`m${n}_h_dep`),
-    dist:    p(`m${n}_dist`),
-    lat:     isFinite(lat) ? lat : null,
-    lon:     isFinite(lon) ? lon : null,
-    poly:    p(`m${n}_pv`),
+    name:     name || `Membre ${n}`,
+    email:    p(`m${n}_email`),
+    service:  p(`m${n}_service`),
+    jours:    p(`m${n}_jours`),
+    h_arr:    p(`m${n}_h_arr`),
+    h_dep:    p(`m${n}_h_dep`),
+    dist:     p(`m${n}_dist`),
+    lat:      isFinite(lat)     ? lat     : null,
+    lon:      isFinite(lon)     ? lon     : null,
+    trav_lat: isFinite(travLat) ? travLat : null,
+    trav_lon: isFinite(travLon) ? travLon : null,
+    poly:     p(`m${n}_pv`),
   });
 }
 
@@ -253,8 +258,9 @@ if (membres.length === 0) {
     </div>`);
   }
 
-  // Marqueur lieu de travail
-  if (isFinite(travLat) && isFinite(travLon) && travLat && travLon) {
+  // Marqueurs lieu de travail — 1 par membre (coloré), ou marqueur partagé en fallback
+  const hasTravPerMembre = membres.some(m => m.trav_lat && m.trav_lon);
+  if (!hasTravPerMembre && isFinite(travLat) && isFinite(travLon) && travLat && travLon) {
     L.marker([travLat, travLon], { icon: buildIcon('🏢', '#555') })
       .addTo(map)
       .bindPopup('<strong>🏢 Lieu de travail partagé</strong>');
@@ -290,6 +296,21 @@ if (membres.length === 0) {
           🕐 Arrivée ${m.h_arr || 'N/A'} · Départ ${m.h_dep || 'N/A'}
         </div>`);
       bounds.extend([m.lat, m.lon]);
+    }
+
+    // Marqueur lieu de travail individuel (léger décalage en spirale si superposés)
+    if (m.trav_lat && m.trav_lon) {
+      const angle  = (Math.PI * 2 / Math.max(membres.length, 1)) * i;
+      const offset = membres.length > 1 ? 0.00018 : 0;
+      const tlat   = m.trav_lat + offset * Math.cos(angle);
+      const tlon   = m.trav_lon + offset * Math.sin(angle);
+      L.marker([tlat, tlon], { icon: buildIcon('🏢', color) })
+        .addTo(map)
+        .bindPopup(`<div style="font-size:0.9em;line-height:1.6">
+          <strong style="color:${color}">🏢 Lieu de travail — ${m.name}</strong><br>
+          ${m.service ? '<em>' + m.service + '</em>' : ''}
+        </div>`);
+      bounds.extend([tlat, tlon]);
     }
 
     // Card dans sidebar
