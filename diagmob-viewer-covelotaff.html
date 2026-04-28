@@ -554,8 +554,18 @@ membres.forEach(m => {
       <div class="schedule">
         <span style="color:#374151;font-weight:600;width:100%">🗓️ Jours sur site :</span>
         ${joursPills}
-        ${m.arrivee ? `<span style="color:#374151;margin-top:4px;width:100%">⏰ ${m.arrivee} → ${m.depart}</span>` : ''}
       </div>
+      ${m.arrivee ? `
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <div style="flex:1;background:#f0fdf4;border-radius:8px;padding:6px 10px;text-align:center">
+          <div style="font-size:0.68em;color:#6b7280;margin-bottom:2px">Arrivée</div>
+          <div style="font-size:1em;font-weight:700;color:#166534">⏰ ${m.arrivee}</div>
+        </div>
+        <div style="flex:1;background:#f0fdf4;border-radius:8px;padding:6px 10px;text-align:center">
+          <div style="font-size:0.68em;color:#6b7280;margin-bottom:2px">Départ</div>
+          <div style="font-size:1em;font-weight:700;color:#166534">🚪 ${m.depart}</div>
+        </div>
+      </div>` : ''}
       ${m.surfaces ? surfacesBar(m.surfaces) : ''}
     </div>`;
 });
