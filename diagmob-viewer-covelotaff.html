@@ -290,13 +290,12 @@ const KM_COMMUN    = parseFloat(p.get('km_commun') || 0);
 const LAT_TRAV     = parseFloat(p.get('lat_trav') || 0);
 const LON_TRAV     = parseFloat(p.get('lon_trav') || 0);
 
-// Couleurs par membre
-// Bleu évité → conflit avec CyclOSM (pistes cyclables en bleu)
-const COLORS = ['#16a34a', '#f97316', '#9333ea', '#e11d48'];
+// Couleurs par membre (bleu évité → conflit avec CyclOSM)
+const COLORS = ['#16a34a', '#f97316', '#9333ea', '#e11d48', '#0891b2', '#be123c'];
 
-// Lire jusqu'à 4 membres
+// Lire jusqu'à 6 membres (mentor + 5 candidats max)
 const membres = [];
-for (let i = 1; i <= 4; i++) {
+for (let i = 1; i <= 6; i++) {
   const n = p.get(`m${i}_n`);
   if (!n) break;
   membres.push({
@@ -363,21 +362,29 @@ map.on('baselayerchange', e => {
 
 const bounds = L.latLngBounds([]);
 
-// Marqueur travail
+// Marqueur travail — un par membre pour afficher la couleur de chaque trajet
 if (LAT_TRAV && LON_TRAV) {
-  L.marker([LAT_TRAV, LON_TRAV], {
-    icon: L.divIcon({ html: '🏢', className: 'emoji-icon', iconSize: [30, 30] })
-  }).addTo(map).bindPopup('Lieu de travail commun');
+  membres.forEach(m => {
+    L.marker([LAT_TRAV, LON_TRAV], {
+      icon: L.divIcon({
+        html: `<div style="background:${m.color};border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.35)">🏢</div>`,
+        className: '', iconSize: [30, 30], iconAnchor: [15, 15]
+      })
+    }).addTo(map).bindPopup(`🏢 Lieu de travail — ${m.nom}`);
+  });
   bounds.extend([LAT_TRAV, LON_TRAV]);
 }
 
-// Tracés et marqueurs domicile
+// Tracés et marqueurs domicile (maison entourée de la couleur du trajet)
 const routeCoords = [];
 membres.forEach((m, i) => {
   if (m.latDom && m.lonDom) {
     L.marker([m.latDom, m.lonDom], {
-      icon: L.divIcon({ html: m.mentor ? '⭐' : '🏠', className: 'emoji-icon', iconSize: [30, 30] })
-    }).addTo(map).bindPopup(`${m.mentor ? '⭐ Mentor : ' : ''}${m.nom}`);
+      icon: L.divIcon({
+        html: `<div style="background:${m.color};border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.35)">${m.mentor ? '⭐' : '🏠'}</div>`,
+        className: '', iconSize: [30, 30], iconAnchor: [15, 15]
+      })
+    }).addTo(map).bindPopup(`${m.mentor ? '⭐ Mentor : ' : '🏠 '}${m.nom}`);
     bounds.extend([m.latDom, m.lonDom]);
   }
 
