@@ -362,10 +362,15 @@ map.on('baselayerchange', e => {
 
 const bounds = L.latLngBounds([]);
 
-// Marqueur travail — un par membre pour afficher la couleur de chaque trajet
+// Marqueur travail — un par membre avec léger décalage en étoile pour éviter la superposition
 if (LAT_TRAV && LON_TRAV) {
-  membres.forEach(m => {
-    L.marker([LAT_TRAV, LON_TRAV], {
+  const n = membres.length;
+  membres.forEach((m, i) => {
+    const angle = (2 * Math.PI * i) / n;
+    const OFFSET_DEG = n > 1 ? 0.00018 : 0; // ~20m pour séparer les marqueurs
+    const latOff = LAT_TRAV + OFFSET_DEG * Math.sin(angle);
+    const lonOff = LON_TRAV + OFFSET_DEG * Math.cos(angle);
+    L.marker([latOff, lonOff], {
       icon: L.divIcon({
         html: `<div style="background:${m.color};border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.35)">🏢</div>`,
         className: '', iconSize: [30, 30], iconAnchor: [15, 15]
@@ -418,7 +423,7 @@ membres.forEach((m, i) => {
   // Pour chaque candidat, trouver le point de sa route le plus proche du mentor
   // puis choisir le premier point (depuis le domicile candidat) sous le seuil de 200m
   const DEG_PER_M = 1 / 111320; // approximation
-  const SEUIL_M = 250; // distance max en mètres pour considérer qu'ils se croisent
+  const SEUIL_M = 100; // distance max en mètres pour considérer qu'ils se croisent
 
   function dist2(a, b) {
     const dlat = a[0] - b[0];
@@ -447,15 +452,6 @@ membres.forEach((m, i) => {
         break; // premier croisement depuis le domicile candidat
       }
     }
-  }
-
-  if (!bestPoint && LAT_TRAV && LON_TRAV) {
-    // Fallback : mi-chemin entre domicile candidat et travail si aucun croisement trouvé
-    const c = candidats[0];
-    bestPoint = [
-      (c.latDom || LAT_TRAV) * 0.5 + LAT_TRAV * 0.5,
-      (c.lonDom || LON_TRAV) * 0.5 + LON_TRAV * 0.5
-    ];
   }
 
   if (bestPoint) {
