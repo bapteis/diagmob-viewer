@@ -373,10 +373,9 @@
     // ═══════════════════════════════════════════════════════════════
     const map = L.map('map').setView([46.603354, 1.888334], 6);
 
-    const layerOSM = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+    const layerOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
-      opacity: 0.55
+      maxZoom: 19
     });
 
     const layerCyclo = L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
