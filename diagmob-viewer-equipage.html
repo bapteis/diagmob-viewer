@@ -208,9 +208,9 @@ for (let n = 1; n <= 3; n++) {
 
 // ─── Initialisation carte ────────────────────────────────────────────
 const map = L.map('map').setView([46.6, 1.9], 6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
   attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  maxZoom: 19
+  maxZoom: 20
 }).addTo(map);
 
 // ─── Icône cercle coloré ─────────────────────────────────────────────
