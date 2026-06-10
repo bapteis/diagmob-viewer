@@ -539,6 +539,12 @@ function surfacesBar(str) {
 const JOURS_TOUS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
 const sidebar = document.getElementById('sidebar');
 
+// Bandeau confidentialité (affiché en premier)
+sidebar.innerHTML += `
+  <div style="margin-bottom:12px;padding:10px 12px;background:#f3f4f6;border-radius:8px;font-size:0.75em;color:#6b7280;line-height:1.5">
+    🔒 Confidentialité : le point de départ affiché est approximatif. Votre adresse exacte n'est pas partagée avec les autres membres.
+  </div>`;
+
 // Km partagé (sans les pills de jours, déjà visibles par membre)
 if (KM_COMMUN > 0) {
   sidebar.innerHTML += `
@@ -603,10 +609,6 @@ sidebar.innerHTML += `
     pour vos trajets en vélo — renseignez-vous auprès de votre service RH.
   </div>`;
 
-sidebar.innerHTML += `
-  <div style="margin-top:12px;padding:10px 12px;background:#f3f4f6;border-radius:8px;font-size:0.75em;color:#6b7280;line-height:1.5">
-    🔒 Confidentialité : le point de départ affiché est approximatif. Votre adresse exacte n'est pas partagée avec les autres membres.
-  </div>`;
 </script>
 </body>
 </html>
