@@ -112,6 +112,23 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+// ─── Confidentialité : coupe les premiers N mètres du polyligne côté domicile ─
+function _haverDist(a, b) {
+  const R = 6371000, dLat = (b[0]-a[0])*Math.PI/180, dLon = (b[1]-a[1])*Math.PI/180;
+  const s = Math.sin(dLat/2)**2 + Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+}
+function trimPolyPrivacy(coords, distM) {
+  if (!coords || coords.length < 2) return coords;
+  let cum = 0;
+  for (let i = 1; i < coords.length; i++) {
+    cum += _haverDist(coords[i-1], coords[i]);
+    if (cum >= distM) return coords.slice(i);
+  }
+  return coords;
+}
+const PRIVACY_M = 400; // mètres masqués côté domicile
+
 // ─── Décodeur polyline inline (format Google / Mapbox) ───────────────
 function decodePoly(str) {
   if (!str) return [];
@@ -271,30 +288,16 @@ if (membres.length === 0) {
     const bg    = BG[i % BG.length];
     const bd    = BD[i % BD.length];
 
-    // Trajet voiture (polyline)
+    // Trajet voiture (polyline) — coupé à PRIVACY_M du domicile
     if (m.poly) {
       try {
-        const coords = decodePoly(m.poly);
+        const coords = trimPolyPrivacy(decodePoly(m.poly), PRIVACY_M);
         if (coords.length > 1) {
           const line = L.polyline(coords, { color, weight: 5, opacity: 0.75 }).addTo(map);
           bounds.extend(line.getBounds());
           legendItems.push({ color, label: 'Trajet ' + m.name.split(' ')[0] });
         }
       } catch(e) { /* polyline invalide */ }
-    }
-
-    // Marqueur domicile
-    if (m.lat && m.lon) {
-      L.marker([m.lat, m.lon], { icon: buildIcon('🏠', color) })
-        .addTo(map)
-        .bindPopup(`<div style="font-size:0.9em;line-height:1.6">
-          <strong style="color:${color}">🏠 ${m.name}</strong><br>
-          ${m.email ? m.email + '<br>' : ''}
-          ${m.service ? '<em>' + m.service + '</em><br>' : ''}
-          📅 ${m.jours || 'N/A'}<br>
-          🕐 Arrivée ${m.h_arr || 'N/A'} · Départ ${m.h_dep || 'N/A'}
-        </div>`);
-      bounds.extend([m.lat, m.lon]);
     }
 
     // Marqueur lieu de travail individuel (léger décalage en spirale si superposés)
@@ -322,8 +325,8 @@ if (membres.length === 0) {
             <div class="k">Jours sur site</div>
             <div class="v">${m.jours || 'N/A'}</div>
           </div>
-          ${showArr && m.h_arr ? `<div class="info-item"><div class="k">Arrivée</div><div class="v">${m.h_arr}</div></div>` : ''}
-          ${showDep && m.h_dep ? `<div class="info-item"><div class="k">Départ</div><div class="v">${m.h_dep}</div></div>` : ''}
+          ${m.h_arr ? `<div class="info-item"><div class="k">⏰ Arrivée</div><div class="v">${m.h_arr}</div></div>` : ''}
+          ${m.h_dep ? `<div class="info-item"><div class="k">🚪 Départ</div><div class="v">${m.h_dep}</div></div>` : ''}
           ${m.service ? `<div class="info-item" style="grid-column:1/-1"><div class="k">Service</div><div class="v">${m.service}</div></div>` : ''}
           ${m.dist    ? `<div class="info-item" style="grid-column:1/-1"><div class="k">Distance domicile–travail</div><div class="v">${m.dist} km</div></div>` : ''}
         </div>
