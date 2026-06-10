@@ -294,6 +294,18 @@ function trimPolyPrivacy(coords, distM) {
   }
   return coords;
 }
+function trimPolyFromHome(coords, homeLat, homeLon, distM) {
+  if (!coords || coords.length < 2 || !homeLat || !homeLon) return trimPolyPrivacy(coords, distM);
+  const distToStart = _haverDist([homeLat, homeLon], coords[0]);
+  const distToEnd   = _haverDist([homeLat, homeLon], coords[coords.length - 1]);
+  if (distToStart <= distToEnd) {
+    return trimPolyPrivacy(coords, distM);
+  } else {
+    const rev     = [...coords].reverse();
+    const trimmed = trimPolyPrivacy(rev, distM);
+    return [...trimmed].reverse();
+  }
+}
 const PRIVACY_M = 200;
 
 // ══════════════════════════════════════════════════════
@@ -402,7 +414,7 @@ const routeCoords = [];
 membres.forEach((m, i) => {
   if (m.pb) {
     try {
-      const coords = trimPolyPrivacy(polyline.decode(m.pb), PRIVACY_M);
+      const coords = trimPolyFromHome(polyline.decode(m.pb), m.latDom, m.lonDom, PRIVACY_M);
       routeCoords.push(coords);
       L.polyline(coords, {
         color: m.color,
@@ -589,6 +601,11 @@ sidebar.innerHTML += `
     <br><br>
     <strong>💡 Le Forfait Mobilités Durables</strong> vous rembourse jusqu'à <strong>300 €/an</strong>
     pour vos trajets en vélo — renseignez-vous auprès de votre service RH.
+  </div>`;
+
+sidebar.innerHTML += `
+  <div style="margin-top:12px;padding:10px 12px;background:#f3f4f6;border-radius:8px;font-size:0.75em;color:#6b7280;line-height:1.5">
+    🔒 Confidentialité : le point de départ affiché est approximatif. Votre adresse exacte n'est pas partagée avec les autres membres.
   </div>`;
 </script>
 </body>
