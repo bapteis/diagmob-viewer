@@ -279,6 +279,23 @@ const polyline = {
   }
 };
 
+// ─── Confidentialité : coupe les premiers N mètres du polyligne côté domicile ─
+function _haverDist(a, b) {
+  const R = 6371000, dLat = (b[0]-a[0])*Math.PI/180, dLon = (b[1]-a[1])*Math.PI/180;
+  const s = Math.sin(dLat/2)**2 + Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+}
+function trimPolyPrivacy(coords, distM) {
+  if (!coords || coords.length < 2) return coords;
+  let cum = 0;
+  for (let i = 1; i < coords.length; i++) {
+    cum += _haverDist(coords[i-1], coords[i]);
+    if (cum >= distM) return coords.slice(i);
+  }
+  return coords;
+}
+const PRIVACY_M = 200;
+
 // ══════════════════════════════════════════════════════
 // PARAMÈTRES URL
 // ══════════════════════════════════════════════════════
@@ -380,22 +397,12 @@ if (LAT_TRAV && LON_TRAV) {
   bounds.extend([LAT_TRAV, LON_TRAV]);
 }
 
-// Tracés et marqueurs domicile (maison entourée de la couleur du trajet)
+// Tracés (domicile masqué — confidentialité : polyligne coupé à PRIVACY_M du départ)
 const routeCoords = [];
 membres.forEach((m, i) => {
-  if (m.latDom && m.lonDom) {
-    L.marker([m.latDom, m.lonDom], {
-      icon: L.divIcon({
-        html: `<div style="background:${m.color};border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.35)">${m.mentor ? '⭐' : '🏠'}</div>`,
-        className: '', iconSize: [30, 30], iconAnchor: [15, 15]
-      })
-    }).addTo(map).bindPopup(`${m.mentor ? '⭐ Mentor : ' : '🏠 '}${m.nom}`);
-    bounds.extend([m.latDom, m.lonDom]);
-  }
-
   if (m.pb) {
     try {
-      const coords = polyline.decode(m.pb);
+      const coords = trimPolyPrivacy(polyline.decode(m.pb), PRIVACY_M);
       routeCoords.push(coords);
       L.polyline(coords, {
         color: m.color,
