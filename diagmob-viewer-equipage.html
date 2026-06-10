@@ -279,6 +279,12 @@ if (membres.length === 0) {
   const showDep  = depTimes.length >= 2 && (Math.max(...depTimes) - Math.min(...depTimes)) <= 30;
   const hasJours = jours && jours.trim().length > 0;
 
+  // Bandeau confidentialité (affiché en premier)
+  sidebarParts.push(`
+    <div style="margin-bottom:12px;padding:10px 12px;background:#f3f4f6;border-radius:8px;font-size:0.75em;color:#6b7280;line-height:1.5">
+      🔒 Confidentialité : le point de départ affiché est approximatif. Votre adresse exacte n'est pas partagée avec les autres membres.
+    </div>`);
+
   // Badge "Jour idéal pour tester" + km partagé
   if (hasJours || kmCommun > 0) {
     sidebarParts.push(`<div class="jours-badge">
@@ -379,10 +385,6 @@ if (membres.length === 0) {
     legendItems.push({ color: '#ea580c', label: 'Aires covoiturage (itinéraires)' });
   }
 
-  sidebarParts.push(`
-    <div style="margin-top:12px;padding:10px 12px;background:#f3f4f6;border-radius:8px;font-size:0.75em;color:#6b7280;line-height:1.5">
-      🔒 Confidentialité : le point de départ affiché est approximatif. Votre adresse exacte n'est pas partagée avec les autres membres.
-    </div>`);
 
   document.getElementById('sidebar-body').innerHTML = sidebarParts.join('');
 
